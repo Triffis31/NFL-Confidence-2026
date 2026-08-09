@@ -14,11 +14,9 @@
   <style>
     @supports (padding-bottom: env(safe-area-inset-bottom)) {
       .pb-safe { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
-      /* Increased from 3.5rem to 5rem to provide a clean buffer above the nav bar */
       .bottom-sticky-bar { bottom: calc(5rem + env(safe-area-inset-bottom)); }
     }
     @supports not (padding-bottom: env(safe-area-inset-bottom)) {
-      /* Increased buffer for non-iOS devices */
       .bottom-sticky-bar { bottom: 5rem; }
     }
     
@@ -38,7 +36,7 @@
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbytRjT4CzCA4MN-xE0t-Fz-Prffq2Hs8x6RkDgNiDDdssuk2Rt12iy9HyWbxwupBNCBLw/exec"; 
     
-    let state = { email: '', name: '', role: 'Member', currentWeek: 1, viewedWeek: 1 };
+    let state = { email: '', name: '', role: 'Member', paid: false, currentWeek: 1, viewedWeek: 1 };
     
     let currentWeekGames = [];
     let userPicks = {}; 
@@ -62,6 +60,7 @@
           state.email = savedEmail;
           state.name = res.name;
           state.role = res.role;
+          state.paid = res.paid;
           state.currentWeek = res.currentWeek || 1;
           state.viewedWeek = state.currentWeek;
           
@@ -109,9 +108,21 @@
       
       if (pushHistory) history.pushState({view: viewId}, "", "#" + viewId);
       
+      if (viewId === 'home-view') {
+        const badge = document.getElementById('unpaid-badge');
+        if (badge) {
+          if (!state.paid) badge.classList.remove('hidden');
+          else badge.classList.add('hidden');
+        }
+      }
+      
       if (viewId === 'picks-view') {
         populateWeekDropdown();
         loadAndRenderPicks();
+      }
+
+      if (viewId === 'account-view') {
+        renderAccountView();
       }
     }
 
@@ -135,6 +146,7 @@
         state.email = email;
         state.name = res.name;
         state.role = res.role;
+        state.paid = res.paid;
         state.currentWeek = res.currentWeek || 1;
         state.viewedWeek = state.currentWeek;
 
@@ -150,6 +162,45 @@
       btn.innerText = 'Log In';
       btn.disabled = false;
       btn.classList.remove('opacity-50');
+    }
+
+    // --- ACCOUNT LOGIC --- //
+
+    function renderAccountView() {
+      document.getElementById('profile-name').value = state.name || '';
+      document.getElementById('profile-email').value = state.email || '';
+
+      const badge = document.getElementById('payment-status-badge');
+      const paymentOptions = document.getElementById('payment-options');
+
+      if (state.paid) {
+        badge.innerText = "Paid";
+        badge.className = "px-3 py-1 rounded-full text-xs font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200";
+        paymentOptions.classList.add('hidden');
+      } else {
+        badge.innerText = "Unpaid";
+        badge.className = "px-3 py-1 rounded-full text-xs font-bold uppercase bg-red-100 text-red-800 border border-red-200";
+        paymentOptions.classList.remove('hidden');
+      }
+    }
+
+    async function saveProfile() {
+      const nameInput = document.getElementById('profile-name').value;
+      const btn = document.getElementById('save-profile-btn');
+      btn.innerText = 'Saving...';
+      btn.disabled = true;
+
+      const res = await apiCall({ action: 'update_name', email: state.email, name: nameInput });
+      
+      if (res && res.success) {
+        state.name = res.name;
+        alert("Profile updated successfully!");
+      } else {
+        alert(res.message || "Error saving profile.");
+      }
+
+      btn.innerText = 'Save Name';
+      btn.disabled = false;
     }
 
     // --- PICKS & CONFIDENCE LOGIC --- //
@@ -393,7 +444,6 @@
       hideUnsavedModal();
       
       if (choice === 'continue') {
-        // User wants to keep working. Revert the dropdown if they triggered it from there.
         document.getElementById('week-selector').value = state.viewedWeek;
         pendingNavigationTarget = null;
         return;
@@ -409,7 +459,6 @@
         restorePicksFromSnapshot();
       }
 
-      // Resume pending navigation
       if (pendingNavigationTarget) {
         if (pendingNavigationTarget.targetWeek) {
           state.viewedWeek = pendingNavigationTarget.targetWeek;
@@ -454,25 +503,77 @@
 
     <div id="home-view" class="view-container hidden space-y-4 mt-6">
       <h2 class="text-2xl font-bold px-1 text-slate-800">Dashboard</h2>
+      
+      <!-- Picks Block -->
       <button onclick="attemptNavigation('picks-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
         <div class="flex items-center"><span class="text-2xl mr-3">🏈</span><span class="font-semibold text-lg text-slate-700">Submit Confidence Picks</span></div>
         <span class="text-slate-400">→</span>
       </button>
+
+      <!-- Props Block -->
       <button onclick="attemptNavigation('props-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
         <div class="flex items-center"><span class="text-2xl mr-3">🎯</span><span class="font-semibold text-lg text-slate-700">Weekly Prop Plays</span></div>
         <span class="text-slate-400">→</span>
       </button>
+
+      <!-- Leaderboard Block -->
       <button onclick="attemptNavigation('leaderboard-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
         <div class="flex items-center"><span class="text-2xl mr-3">🏆</span><span class="font-semibold text-lg text-slate-700">Leaderboard</span></div>
         <span class="text-slate-400">→</span>
       </button>
+      
+      <!-- Account Block -->
+      <button onclick="attemptNavigation('account-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
+        <div class="flex items-center"><span class="text-2xl mr-3">👤</span><span class="font-semibold text-lg text-slate-700">My Account</span></div>
+        <div class="flex items-center">
+          <span id="unpaid-badge" class="hidden w-3 h-3 bg-red-500 rounded-full shadow-sm mr-3 animate-pulse"></span>
+          <span class="text-slate-400">→</span>
+        </div>
+      </button>
+    </div>
+
+    <!-- Account View -->
+    <div id="account-view" class="view-container hidden mt-6">
+      <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">My Account</h2>
+      
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Display Name</label>
+          <input type="text" id="profile-name" class="w-full border-slate-300 rounded-lg p-3 border focus:ring-slate-900 outline-none transition" placeholder="Enter your display name">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-500 mb-1">Email</label>
+          <input type="email" id="profile-email" class="w-full bg-slate-50 text-slate-500 border-slate-200 rounded-lg p-3 border outline-none cursor-not-allowed" disabled>
+        </div>
+        <button onclick="saveProfile()" id="save-profile-btn" class="w-full bg-slate-900 text-white font-bold py-3 rounded-xl mt-2 hover:bg-slate-800 transition">Save Name</button>
+      </div>
+
+      <div class="mt-6 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+        <div class="flex justify-between items-center mb-4">
+          <span class="font-bold text-slate-700 text-lg">League Dues</span>
+          <span id="payment-status-badge" class="px-3 py-1 rounded-full text-xs font-bold uppercase"></span>
+        </div>
+
+        <div id="payment-options" class="hidden space-y-4 mt-4 border-t border-slate-100 pt-4">
+          <p class="text-sm text-slate-600 mb-2">Please submit your $50.00 league dues using one of the methods below:</p>
+
+          <a href="https://venmo.com/Jon-Jobb?txn=pay&amount=50.00&note=NFL_Confidence_2026" target="_blank" class="block w-full bg-[#008CFF] text-white text-center font-bold py-3 rounded-xl shadow-sm hover:bg-[#0074D4] transition">
+            Pay with Venmo
+          </a>
+
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
+            <span class="block font-bold text-[#741ff5] mb-3">Pay with Zelle</span>
+            <img src="image_99267e.png" alt="Zelle QR Code" class="w-40 h-40 mx-auto rounded-lg shadow-sm border border-slate-200 mb-3 bg-white p-2">
+            <span class="text-sm font-medium text-slate-700">jonjobb@gmail.com</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div id="picks-view" class="view-container hidden mt-6">
       <div class="flex items-center justify-between px-1 mb-4">
         <div class="relative">
           <select id="week-selector" onchange="handleWeekChange(this.value)" class="text-2xl font-bold text-slate-800 bg-transparent border-none outline-none cursor-pointer appearance-none pr-6 z-10 relative focus:ring-0">
-            <!-- Dynamically populated options -->
           </select>
           <div class="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">▼</div>
         </div>
@@ -525,14 +626,13 @@
       <div class="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto text-amber-600 text-xl font-bold">⚠️</div>
       <h3 class="text-lg font-bold text-slate-800 leading-snug">Did you want to save the changes made to your picks?</h3>
       <div class="flex flex-col gap-3 pt-2">
-        <!-- New Continue Editing Button -->
         <button onclick="resolveUnsavedChoice('continue')" class="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold py-3 rounded-xl transition text-sm shadow-sm">
           Continue Editing
         </button>
         
         <div class="flex gap-3">
-          <button onclick="resolveUnsavedChoice('discard')" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition text-sm">Discard</button>
-          <button onclick="resolveUnsavedChoice('save')" class="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition text-sm shadow-md">Save</button>
+          <button onclick="resolveUnsavedChoice('discard')" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl transition text-sm shadow-md">Discard</button>
+          <button onclick="resolveUnsavedChoice('save')" class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition text-sm shadow-md">Save</button>
         </div>
       </div>
     </div>
@@ -546,9 +646,7 @@
           reg.onupdatefound = () => {
             const installingWorker = reg.installing;
             installingWorker.onstatechange = () => {
-              // If the new service worker is installed and there's a previous one controlling the page
               if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // Force page reload to clear cache when a new update is found
                 window.location.reload();
               }
             };
