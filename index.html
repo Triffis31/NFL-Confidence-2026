@@ -5,56 +5,69 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NFL Confidence League</title>
   
-  <!-- PWA Manifest -->
   <link rel="manifest" href="manifest.json">
-  
-  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
+  <!-- SortableJS for Drag and Drop -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+  
   <style>
-    /* iOS Safe Area Padding for modern iPhones */
     @supports (padding-bottom: env(safe-area-inset-bottom)) {
       .pb-safe { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
+      .bottom-sticky-bar { bottom: calc(3.5rem + env(safe-area-inset-bottom)); }
+    }
+    @supports not (padding-bottom: env(safe-area-inset-bottom)) {
+      .bottom-sticky-bar { bottom: 3.5rem; }
     }
     
-    /* Prevent pull-to-refresh background bleeding and tap highlights */
     body { 
       -webkit-tap-highlight-color: transparent; 
       overscroll-behavior-y: contain; 
-      background-color: #f8fafc; /* Tailwind slate-50 */
+      background-color: #f8fafc; 
     }
-    
-    /* Global utility for hiding SPA views */
     .hidden { display: none !important; }
+    
+    .sortable-ghost { opacity: 0.3; }
+    .sortable-drag { box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15); cursor: grabbing !important; }
+    .drag-handle { cursor: grab; }
+    .drag-handle:active { cursor: grabbing; }
   </style>
 
   <script>
-    // Google Apps Script Web App URL
     const API_URL = "https://script.google.com/macros/s/AKfycbytRjT4CzCA4MN-xE0t-Fz-Prffq2Hs8x6RkDgNiDDdssuk2Rt12iy9HyWbxwupBNCBLw/exec"; 
     
-    // Global State Management
-    let state = { email: '', role: 'Member', data: null };
+    let state = { email: '', name: '', role: 'Member', data: null, currentWeek: 1 };
+    
+    // Sample Games List for Week 1 (Will be dynamically fetched in future steps)
+    let currentWeekGames = [
+      { id: 'g1', away: 'NE', awayLogo: 'https://a.espncdn.com/i/teamlogos/nfl/500/ne.png', home: 'SEA', homeLogo: 'https://a.espncdn.com/i/teamlogos/nfl/500/sea.png' },
+      { id: 'g2', away: 'CHI', awayLogo: 'https://a.espncdn.com/i/teamlogos/nfl/500/chi.png', home: 'GB', homeLogo: 'https://a.espncdn.com/i/teamlogos/nfl/500/gb.png' },
+      { id: 'g3', away: 'DET', awayLogo: 'https://a.espncdn.com/i/teamlogos/nfl/500/det.png', home: 'MIN', homeLogo: 'https://a.espncdn.com/i/teamlogos/nfl/500/min.png' },
+      { id: 'g4', away: 'NYG', awayLogo: 'https://a.espncdn.com/i/teamlogos/nfl/500/nyg.png', home: 'DAL', homeLogo: 'https://a.espncdn.com/i/teamlogos/nfl/500/dal.png' },
+      { id: 'g5', away: 'KC', awayLogo: 'https://a.espncdn.com/i/teamlogos/nfl/500/kc.png', home: 'BAL', homeLogo: 'https://a.espncdn.com/i/teamlogos/nfl/500/bal.png' }
+    ];
+    
+    let userPicks = {}; 
+    let hasUnsavedChanges = false;
+    let savedPicksSnapshot = null; // Baseline snapshot of saved picks
+    let pendingNavigationTarget = null;
+    let sortableInstance = null;
 
-    // Native Back Button Support (History API)
+    // Browser Navigation Listener
     window.onpopstate = function(event) {
-      if (event.state && event.state.view) {
-        navigate(event.state.view, false);
-      } else {
-        navigate('home-view', false);
-      }
+      const targetView = (event.state && event.state.view) ? event.state.view : 'home-view';
+      attemptNavigation(targetView, false);
     };
 
-    // App Initialization & Local Storage Check
     async function initApp() {
       const savedEmail = localStorage.getItem('nfl_email');
       const savedCode = localStorage.getItem('nfl_code');
 
       if (savedEmail && savedCode) {
-        // Attempt silent login
         const res = await apiCall({ action: 'login', email: savedEmail, code: savedCode });
-        
         if (res && res.success) {
           state.email = savedEmail;
+          state.name = res.name;
           state.role = res.role;
           
           document.getElementById('loading-view').classList.add('hidden');
@@ -63,13 +76,10 @@
           return;
         }
       }
-      
-      // If no credentials or login failed, show the login screen
       document.getElementById('loading-view').classList.add('hidden');
       document.getElementById('login-view').classList.remove('hidden');
     }
 
-    // Standard API Fetch Wrapper
     async function apiCall(payload) {
       try {
         const res = await fetch(API_URL, {
@@ -83,20 +93,31 @@
       }
     }
 
-    // View Routing Logic
+    // Navigation Guard for Unsaved Changes
+    function attemptNavigation(targetViewId, pushHistory = true) {
+      const currentView = document.querySelector('main > div.view-container:not(.hidden)')?.id;
+      
+      // If leaving picks-view with unsaved changes, trigger modal
+      if (currentView === 'picks-view' && targetViewId !== 'picks-view' && hasUnsavedChanges) {
+        pendingNavigationTarget = { viewId: targetViewId, pushHistory };
+        showUnsavedModal();
+        return;
+      }
+      
+      navigate(targetViewId, pushHistory);
+    }
+
     function navigate(viewId, pushHistory = true) {
-      // Hide all main containers
-      document.querySelectorAll('main > div').forEach(el => el.classList.add('hidden'));
-      // Show targeted view
+      document.querySelectorAll('main > div.view-container').forEach(el => el.classList.add('hidden'));
       document.getElementById(viewId).classList.remove('hidden');
       
-      // Update history state
-      if (pushHistory) {
-        history.pushState({view: viewId}, "", "#" + viewId);
+      if (pushHistory) history.pushState({view: viewId}, "", "#" + viewId);
+      
+      if (viewId === 'picks-view') {
+        loadAndRenderPicks();
       }
     }
 
-    // Login Form Handler
     async function handleLogin(e) {
       e.preventDefault();
       const email = document.getElementById('email').value;
@@ -104,7 +125,6 @@
       const btn = document.getElementById('login-btn');
       const errorText = document.getElementById('login-error');
       
-      // Loading State
       btn.innerText = 'Logging in...';
       btn.disabled = true;
       btn.classList.add('opacity-50');
@@ -113,13 +133,11 @@
       const res = await apiCall({ action: 'login', email, code });
       
       if (res.success) {
-        // Persist to local storage
         localStorage.setItem('nfl_email', email);
         localStorage.setItem('nfl_code', code);
-        
         state.email = email;
+        state.name = res.name;
         state.role = res.role;
-
         document.getElementById('login-view').classList.add('hidden');
         document.getElementById('bottom-nav').classList.remove('hidden');
         navigate('home-view', true);
@@ -128,28 +146,254 @@
         errorText.classList.remove('hidden');
       }
       
-      // Reset Button
       btn.innerText = 'Log In';
       btn.disabled = false;
       btn.classList.remove('opacity-50');
     }
 
-    // Run initApp when the DOM is fully loaded
+    // --- PICKS & CONFIDENCE LOGIC --- //
+
+    async function loadAndRenderPicks() {
+      // Fetch saved picks from database
+      const res = await apiCall({ action: 'get_picks', email: state.email, week: state.currentWeek });
+      
+      userPicks = {};
+      if (res && res.success && res.picks && res.picks.length > 0) {
+        // Map database picks
+        res.picks.forEach(p => {
+          // Identify game ID matching 'AWAY @ HOME'
+          const matchingGame = currentWeekGames.find(g => `${g.away} @ ${g.home}` === p.game);
+          if (matchingGame) {
+            userPicks[matchingGame.id] = p.choice;
+          }
+        });
+
+        // Re-order games according to confidence rank from DB
+        currentWeekGames.sort((a, b) => {
+          const gameAStr = `${a.away} @ ${a.home}`;
+          const gameBStr = `${b.away} @ ${b.home}`;
+          const pickA = res.picks.find(p => p.game === gameAStr);
+          const pickB = res.picks.find(p => p.game === gameBStr);
+          const confA = pickA ? Number(pickA.confidence) : 0;
+          const confB = pickB ? Number(pickB.confidence) : 0;
+          return confB - confA; // Highest confidence at top
+        });
+      }
+
+      hasUnsavedChanges = false;
+      takePicksSnapshot();
+      renderPicksList();
+      updateSaveBarUI();
+    }
+
+    function renderPicksList() {
+      const container = document.getElementById('picks-list');
+      let html = '';
+      
+      currentWeekGames.forEach((game, index) => {
+        const confidenceVal = 16 - index; // 16 down to 1
+        const pickedTeam = userPicks[game.id] || null;
+        
+        const awaySelected = pickedTeam === game.away ? 'border-green-500 bg-green-50' : 'border-transparent bg-white';
+        const homeSelected = pickedTeam === game.home ? 'border-green-500 bg-green-50' : 'border-transparent bg-white';
+
+        html += `
+          <div class="pick-row flex items-center mb-3" data-game-id="${game.id}" data-away="${game.away}" data-home="${game.home}">
+            <div class="confidence-legend w-10 h-16 flex items-center justify-center font-black text-slate-400 bg-slate-100 rounded-l-xl border border-slate-200 border-r-0 text-lg shadow-sm">
+              ${confidenceVal}
+            </div>
+            
+            <div class="flex-1 flex items-stretch h-16 bg-white rounded-r-xl border border-slate-200 shadow-sm overflow-hidden">
+              <button onclick="selectTeam(this, '${game.id}', '${game.away}')" class="team-btn away-btn flex-1 flex items-center justify-start px-3 border-2 ${awaySelected} transition-colors active:bg-slate-50">
+                <img src="${game.awayLogo}" class="w-7 h-7 object-contain mr-2">
+                <span class="font-bold text-slate-800 tracking-tight">${game.away}</span>
+              </button>
+              
+              <div class="drag-handle w-10 flex items-center justify-center bg-slate-50 border-x border-slate-100 text-slate-400 font-bold text-sm hover:text-slate-600 transition-colors">
+                @
+              </div>
+
+              <button onclick="selectTeam(this, '${game.id}', '${game.home}')" class="team-btn home-btn flex-1 flex items-center justify-end px-3 border-2 ${homeSelected} transition-colors active:bg-slate-50">
+                <span class="font-bold text-slate-800 tracking-tight">${game.home}</span>
+                <img src="${game.homeLogo}" class="w-7 h-7 object-contain ml-2">
+              </button>
+            </div>
+          </div>
+        `;
+      });
+      
+      container.innerHTML = html;
+
+      if (sortableInstance) sortableInstance.destroy();
+      
+      sortableInstance = new Sortable(container, {
+        handle: '.drag-handle',
+        animation: 200,
+        ghostClass: 'sortable-ghost',
+        dragClass: 'sortable-drag',
+        onEnd: function () {
+          updateConfidenceNumbers();
+          markUnsaved();
+        }
+      });
+    }
+
+    function selectTeam(buttonEl, gameId, selectedTeam) {
+      userPicks[gameId] = selectedTeam;
+      
+      const row = buttonEl.closest('.pick-row');
+      const awayBtn = row.querySelector('.away-btn');
+      const homeBtn = row.querySelector('.home-btn');
+      
+      awayBtn.className = awayBtn.className.replace('border-green-500 bg-green-50', 'border-transparent bg-white');
+      homeBtn.className = homeBtn.className.replace('border-green-500 bg-green-50', 'border-transparent bg-white');
+      
+      buttonEl.className = buttonEl.className.replace('border-transparent bg-white', 'border-green-500 bg-green-50');
+      
+      markUnsaved();
+    }
+
+    function updateConfidenceNumbers() {
+      const rows = document.querySelectorAll('#picks-list .pick-row');
+      rows.forEach((row, index) => {
+        row.querySelector('.confidence-legend').innerText = 16 - index;
+      });
+    }
+
+    function markUnsaved() {
+      hasUnsavedChanges = true;
+      updateSaveBarUI();
+    }
+
+    function takePicksSnapshot() {
+      savedPicksSnapshot = JSON.stringify({
+        picks: { ...userPicks },
+        order: Array.from(document.querySelectorAll('#picks-list .pick-row')).map(r => r.dataset.gameId)
+      });
+    }
+
+    function restorePicksFromSnapshot() {
+      if (!savedPicksSnapshot) return;
+      const snapshot = JSON.parse(savedPicksSnapshot);
+      userPicks = { ...snapshot.picks };
+      
+      // Re-order DOM according to snapshot
+      const container = document.getElementById('picks-list');
+      snapshot.order.forEach(id => {
+        const row = container.querySelector(`[data-game-id="${id}"]`);
+        if (row) container.appendChild(row);
+      });
+      
+      updateConfidenceNumbers();
+      renderPicksList();
+      hasUnsavedChanges = false;
+      updateSaveBarUI();
+    }
+
+    function updateSaveBarUI() {
+      const statusBadge = document.getElementById('save-status-badge');
+      const saveBtn = document.getElementById('save-picks-btn');
+      
+      if (hasUnsavedChanges) {
+        statusBadge.innerText = "Unsaved Changes";
+        statusBadge.className = "text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800";
+        saveBtn.classList.remove('opacity-70');
+      } else {
+        statusBadge.innerText = "All Saved";
+        statusBadge.className = "text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800";
+      }
+    }
+
+    async function handleSavePicks() {
+      const saveBtn = document.getElementById('save-picks-btn');
+      saveBtn.innerText = 'Saving...';
+      saveBtn.disabled = true;
+
+      // Extract current DOM ordering for confidence assignments
+      const rows = document.querySelectorAll('#picks-list .pick-row');
+      const picksPayload = [];
+
+      rows.forEach((row, index) => {
+        const gameId = row.dataset.gameId;
+        const away = row.dataset.away;
+        const home = row.dataset.home;
+        const confidence = 16 - index; // 16 down to 1
+        const choice = userPicks[gameId] || '';
+
+        picksPayload.push({
+          game: `${away} @ ${home}`,
+          choice: choice,
+          confidence: confidence
+        });
+      });
+
+      const res = await apiCall({
+        action: 'submit_picks',
+        email: state.email,
+        week: state.currentWeek,
+        picks: picksPayload
+      });
+
+      saveBtn.innerText = 'Save Picks';
+      saveBtn.disabled = false;
+
+      if (res && res.success) {
+        hasUnsavedChanges = false;
+        takePicksSnapshot();
+        updateSaveBarUI();
+        return true;
+      } else {
+        alert(res.message || "Failed to save picks. Please try again.");
+        return false;
+      }
+    }
+
+    // --- MODAL DIALOG LOGIC --- //
+
+    function showUnsavedModal() {
+      document.getElementById('unsaved-modal').classList.remove('hidden');
+    }
+
+    function hideUnsavedModal() {
+      document.getElementById('unsaved-modal').classList.add('hidden');
+    }
+
+    async function resolveUnsavedChoice(choice) {
+      hideUnsavedModal();
+      
+      if (choice === 'save') {
+        const savedSuccessfully = await handleSavePicks();
+        if (!savedSuccessfully) {
+          pendingNavigationTarget = null;
+          return; // Stop navigation if save failed
+        }
+      } else {
+        // Discard or Backdrop dismissal
+        restorePicksFromSnapshot();
+      }
+
+      if (pendingNavigationTarget) {
+        const { viewId, pushHistory } = pendingNavigationTarget;
+        pendingNavigationTarget = null;
+        navigate(viewId, pushHistory);
+      }
+    }
+
     window.addEventListener('DOMContentLoaded', initApp);
   </script>
 </head>
 <body class="text-slate-900 pb-safe">
   
-  <main class="max-w-md mx-auto p-4 min-h-screen relative pb-20">
+  <main class="max-w-md mx-auto p-4 min-h-screen relative pb-36">
     
     <!-- Loading View -->
-    <div id="loading-view" class="flex flex-col items-center justify-center h-64 mt-20">
+    <div id="loading-view" class="view-container flex flex-col items-center justify-center h-64 mt-20">
       <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-slate-900 mb-4"></div>
       <p class="text-slate-500 font-medium text-sm">Loading Application...</p>
     </div>
 
     <!-- Login View -->
-    <div id="login-view" class="hidden mt-20">
+    <div id="login-view" class="view-container hidden mt-20">
       <div class="text-center mb-8">
         <h1 class="text-3xl font-bold text-slate-800">NFL Pool</h1>
       </div>
@@ -167,87 +411,96 @@
       </form>
     </div>
 
-    <!-- Dashboard / Home View -->
-    <div id="home-view" class="hidden space-y-4 mt-6">
+    <!-- Dashboard View -->
+    <div id="home-view" class="view-container hidden space-y-4 mt-6">
       <h2 class="text-2xl font-bold px-1 text-slate-800">Dashboard</h2>
-      
-      <button onclick="navigate('picks-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
-        <div class="flex items-center">
-          <span class="text-2xl mr-3">🏈</span>
-          <span class="font-semibold text-lg text-slate-700">Submit Confidence Picks</span>
-        </div>
+      <button onclick="attemptNavigation('picks-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
+        <div class="flex items-center"><span class="text-2xl mr-3">🏈</span><span class="font-semibold text-lg text-slate-700">Submit Confidence Picks</span></div>
         <span class="text-slate-400">→</span>
       </button>
-
-      <button onclick="navigate('props-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
-        <div class="flex items-center">
-          <span class="text-2xl mr-3">🎯</span>
-          <span class="font-semibold text-lg text-slate-700">Weekly Prop Plays</span>
-        </div>
+      <button onclick="attemptNavigation('props-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
+        <div class="flex items-center"><span class="text-2xl mr-3">🎯</span><span class="font-semibold text-lg text-slate-700">Weekly Prop Plays</span></div>
         <span class="text-slate-400">→</span>
       </button>
-
-      <button onclick="navigate('leaderboard-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
-        <div class="flex items-center">
-          <span class="text-2xl mr-3">🏆</span>
-          <span class="font-semibold text-lg text-slate-700">Leaderboard</span>
-        </div>
+      <button onclick="attemptNavigation('leaderboard-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
+        <div class="flex items-center"><span class="text-2xl mr-3">🏆</span><span class="font-semibold text-lg text-slate-700">Leaderboard</span></div>
         <span class="text-slate-400">→</span>
       </button>
     </div>
 
-    <!-- Confidence Picks View Placeholder -->
-    <div id="picks-view" class="hidden mt-6">
-      <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">Weekly Picks</h2>
-      <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 text-center text-slate-500">
-        <!-- Future logic for 1-16 confidence selections goes here -->
-        Picks interface construction pending.
+    <!-- Picks View -->
+    <div id="picks-view" class="view-container hidden mt-6">
+      <div class="flex items-center justify-between px-1 mb-4">
+        <h2 class="text-2xl font-bold text-slate-800">Week 1 Picks</h2>
+        <span id="save-status-badge" class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">All Saved</span>
+      </div>
+      
+      <p class="text-xs text-slate-500 mb-4 px-1">Tap a team to select winner. Drag the <b>@</b> symbol to rank by confidence.</p>
+
+      <!-- Drag & Drop Pick List -->
+      <div id="picks-list" class="mb-4"></div>
+      
+      <!-- Sticky Always-Visible Save Bar -->
+      <div class="fixed left-0 right-0 max-w-md mx-auto px-4 z-30 bottom-sticky-bar">
+        <div class="bg-slate-900/90 backdrop-blur-md p-3 rounded-2xl shadow-lg border border-slate-800 flex items-center justify-between">
+          <div class="text-white text-xs pl-2">
+            <span class="font-bold block">Confidence Slate</span>
+            <span class="text-slate-400">16 = Highest Confidence</span>
+          </div>
+          <button id="save-picks-btn" onclick="handleSavePicks()" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm px-6 py-2.5 rounded-xl transition active:scale-95 shadow-md">
+            Save Picks
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- Prop Plays View Placeholder -->
-    <div id="props-view" class="hidden mt-6">
+    <!-- Placeholder Views -->
+    <div id="props-view" class="view-container hidden mt-6">
       <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">Prop Plays</h2>
       <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 text-center text-slate-500">
-        <!-- Future logic for weekly prop modifiers goes here -->
         Prop plays interface construction pending.
       </div>
     </div>
 
-    <!-- Leaderboard View Placeholder -->
-    <div id="leaderboard-view" class="hidden mt-6">
+    <div id="leaderboard-view" class="view-container hidden mt-6">
       <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">Leaderboard</h2>
       <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 text-center text-slate-500">
-        <!-- Future logic for leaderboard tables goes here -->
         Leaderboard construction pending.
       </div>
     </div>
 
   </main>
 
-  <!-- Bottom App Navigation -->
-  <nav id="bottom-nav" class="hidden fixed bottom-0 w-full bg-white border-t border-slate-200 px-6 py-3 flex justify-around text-xs font-semibold text-slate-400 z-40 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.02)]">
-    <button onclick="navigate('home-view')" class="flex flex-col items-center hover:text-slate-900 transition">
-      <span class="text-xl mb-1">🏠</span>Home
-    </button>
-    <button onclick="navigate('picks-view')" class="flex flex-col items-center hover:text-slate-900 transition">
-      <span class="text-xl mb-1">🏈</span>Picks
-    </button>
-    <button onclick="navigate('props-view')" class="flex flex-col items-center hover:text-slate-900 transition">
-      <span class="text-xl mb-1">🎯</span>Props
-    </button>
-    <button onclick="navigate('leaderboard-view')" class="flex flex-col items-center hover:text-slate-900 transition">
-      <span class="text-xl mb-1">🏆</span>Board
-    </button>
+  <!-- Bottom App Navigation Bar -->
+  <nav id="bottom-nav" class="hidden fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-200 px-6 py-3 flex justify-around text-xs font-semibold text-slate-400 z-40 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.02)]">
+    <button onclick="attemptNavigation('home-view')" class="flex flex-col items-center hover:text-slate-900 transition"><span class="text-xl mb-1">🏠</span>Home</button>
+    <button onclick="attemptNavigation('picks-view')" class="flex flex-col items-center hover:text-slate-900 transition"><span class="text-xl mb-1">🏈</span>Picks</button>
+    <button onclick="attemptNavigation('props-view')" class="flex flex-col items-center hover:text-slate-900 transition"><span class="text-xl mb-1">🎯</span>Props</button>
+    <button onclick="attemptNavigation('leaderboard-view')" class="flex flex-col items-center hover:text-slate-900 transition"><span class="text-xl mb-1">🏆</span>Board</button>
   </nav>
 
-  <!-- Service Worker Registration for PWA -->
+  <!-- Unsaved Changes Prompt Modal -->
+  <div id="unsaved-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onclick="if(event.target === this) resolveUnsavedChoice('discard')">
+    <div class="bg-white rounded-2xl p-6 max-w-xs w-full shadow-2xl border border-slate-100 space-y-4 text-center transform transition-all">
+      <div class="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto text-amber-600 text-xl font-bold">
+        ⚠️
+      </div>
+      <h3 class="text-lg font-bold text-slate-800 leading-snug">Did you want to save the changes made to your picks?</h3>
+      <div class="flex gap-3 pt-2">
+        <button onclick="resolveUnsavedChoice('discard')" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition text-sm">
+          Discard
+        </button>
+        <button onclick="resolveUnsavedChoice('save')" class="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition text-sm shadow-md">
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(err => {
-          console.log('Service Worker registration failed:', err);
-        });
+        navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW registration pending.'));
       });
     }
   </script>
