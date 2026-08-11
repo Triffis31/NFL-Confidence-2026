@@ -46,6 +46,12 @@
     let sortableInstance = null;
     let adminUsersData = [];
 
+    // Admin Featured State
+    let adminFeaturedGames = [];
+    let adminSelectedFeatured = [];
+    let adminFeaturedStatus = 'Not Set';
+    let adminViewedWeek = 1;
+
     window.onpopstate = function(event) {
       const targetView = (event.state && event.state.view) ? event.state.view : 'home-view';
       attemptNavigation(targetView, false);
@@ -65,6 +71,7 @@
           state.currentWeek = res.currentWeek || 1;
           state.viewedWeek = state.currentWeek;
           state.missingPicks = res.missingPicks || false;
+          adminViewedWeek = state.currentWeek;
           
           if (res.needsName) {
             await promptForDisplayName();
@@ -77,7 +84,6 @@
              document.getElementById('admin-nav-btn').classList.remove('hidden');
           }
 
-          populateWeekDropdown();
           navigate('home-view', true);
           return;
         }
@@ -151,7 +157,7 @@
       }
       
       if (viewId === 'picks-view') {
-        populateWeekDropdown();
+        populateWeekDropdown('week-selector', state.viewedWeek);
         loadAndRenderPicks();
       }
 
@@ -161,6 +167,11 @@
 
       if (viewId === 'admin-users-view') {
         loadAdminUsers();
+      }
+
+      if (viewId === 'admin-featured-view') {
+        populateWeekDropdown('admin-featured-week-selector', adminViewedWeek);
+        loadAdminFeaturedPicks();
       }
     }
 
@@ -188,6 +199,7 @@
         state.currentWeek = res.currentWeek || 1;
         state.viewedWeek = state.currentWeek;
         state.missingPicks = res.missingPicks || false;
+        adminViewedWeek = state.currentWeek;
 
         if (res.needsName) {
           await promptForDisplayName();
@@ -200,7 +212,6 @@
            document.getElementById('admin-nav-btn').classList.remove('hidden');
         }
 
-        populateWeekDropdown();
         navigate('home-view', true);
       } else {
         errorText.innerText = res.message;
@@ -213,14 +224,12 @@
     }
 
     // --- ACCOUNT LOGIC --- //
-
+    // ... [Keep renderAccountView, saveProfile, notifyAdminPayment exactly as they are] ...
     function renderAccountView() {
       document.getElementById('profile-name').value = state.name || '';
       document.getElementById('profile-email').value = state.email || '';
-
       const badge = document.getElementById('payment-status-badge');
       const paymentOptions = document.getElementById('payment-options');
-
       if (state.paid === true) {
         badge.innerText = "Paid";
         badge.className = "px-3 py-1 rounded-full text-xs font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200";
@@ -241,16 +250,13 @@
       const btn = document.getElementById('save-profile-btn');
       btn.innerText = 'Saving...';
       btn.disabled = true;
-
       const res = await apiCall({ action: 'update_name', email: state.email, name: nameInput });
-      
       if (res && res.success) {
         state.name = res.name;
         alert("Profile updated successfully!");
       } else {
         alert(res.message || "Error saving profile.");
       }
-
       btn.innerText = 'Save Name';
       btn.disabled = false;
     }
@@ -259,9 +265,7 @@
       const btn = document.getElementById('notify-payment-btn');
       btn.innerText = 'Notifying...';
       btn.disabled = true;
-
       const res = await apiCall({ action: 'notify_payment', email: state.email });
-      
       if (res && res.success) {
         state.paid = 'Pending';
         renderAccountView();
@@ -272,11 +276,10 @@
       }
     }
 
-    // --- ADMIN LOGIC --- //
-
+    // --- ADMIN USERS LOGIC --- //
+    // ... [Keep loadAdminUsers, filterAdminUsers, renderAdminUsersList, handleAdminUserAction, promptAdminAddUser exactly as they are] ...
     async function loadAdminUsers() {
       document.getElementById('admin-users-list').innerHTML = '<div class="py-8 text-center text-slate-400">Loading users...</div>';
-      
       const res = await apiCall({ action: 'admin_get_users', email: state.email });
       if (res && res.success) {
         adminUsersData = res.users;
@@ -289,13 +292,11 @@
     function filterAdminUsers() {
       const search = document.getElementById('admin-search').value.toLowerCase();
       const filter = document.getElementById('admin-filter').value;
-      
       const filtered = adminUsersData.filter(u => {
         const matchSearch = u.name.toLowerCase().includes(search) || u.email.toLowerCase().includes(search);
         const matchFilter = filter === 'All' || u.paid === filter;
         return matchSearch && matchFilter;
       });
-
       renderAdminUsersList(filtered);
     }
 
@@ -305,7 +306,6 @@
         container.innerHTML = '<div class="p-6 text-center text-sm text-slate-500 bg-white rounded-xl border border-dashed border-slate-200">No users found.</div>';
         return;
       }
-
       let html = '';
       users.forEach(u => {
         let badgeClass = '';
@@ -322,7 +322,6 @@
               </div>
               <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${badgeClass}">${u.paid}</span>
             </div>
-            
             <div class="flex justify-end border-t border-slate-50 pt-2">
               <select onchange="handleAdminUserAction(this, '${u.email}')" class="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50 outline-none text-slate-600 font-medium">
                 <option value="">Actions...</option>
@@ -343,7 +342,6 @@
       const action = selectEl.value;
       if (!action) return;
       selectEl.value = ''; 
-
       if (action === 'resend') {
         if(confirm(`Resend the welcome email and code to ${userEmail}?`)) {
           const res = await apiCall({ action: 'admin_action', email: state.email, actionType: 'resend', targetEmail: userEmail });
@@ -353,18 +351,14 @@
       } else if (action.startsWith('pay_')) {
         const newStatus = action.split('_')[1];
         const res = await apiCall({ action: 'admin_action', email: state.email, actionType: 'update_payment', targetEmail: userEmail, actionValue: newStatus });
-        if(res.success) {
-           loadAdminUsers();
-        } else {
-           alert("Failed to update status.");
-        }
+        if(res.success) loadAdminUsers();
+        else alert("Failed to update status.");
       }
     }
 
     async function promptAdminAddUser() {
       const newEmail = prompt("Enter the email address for the new user:");
       if (!newEmail || newEmail.trim() === '') return;
-
       const res = await apiCall({ action: 'admin_invite', email: state.email, newEmail: newEmail.trim() });
       if (res && res.success) {
         alert("User added and invite email sent!");
@@ -374,10 +368,120 @@
       }
     }
 
+    // --- ADMIN FEATURED GAMES LOGIC --- //
+
+    function handleAdminFeaturedWeekChange(newWeek) {
+      adminViewedWeek = Number(newWeek);
+      loadAdminFeaturedPicks();
+    }
+
+    async function loadAdminFeaturedPicks() {
+      document.getElementById('admin-featured-list').innerHTML = '<div class="py-8 text-center text-slate-400">Loading games...</div>';
+      
+      const res = await apiCall({ action: 'admin_get_featured', email: state.email, week: adminViewedWeek });
+      
+      if (res && res.success) {
+        adminFeaturedGames = res.games || [];
+        adminSelectedFeatured = res.selectedGames || [];
+        adminFeaturedStatus = res.status || 'Not Set';
+        
+        updateAdminFeaturedStatusUI();
+        renderAdminFeaturedList();
+      } else {
+        document.getElementById('admin-featured-list').innerHTML = '<div class="py-8 text-center text-red-400">Failed to load games.</div>';
+      }
+    }
+
+    function updateAdminFeaturedStatusUI() {
+      const badge = document.getElementById('admin-featured-status-badge');
+      if (adminFeaturedStatus === 'Live') {
+        badge.className = "px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200";
+      } else if (adminFeaturedStatus === 'Pending') {
+        badge.className = "px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-100 text-amber-800 border border-amber-200";
+      } else {
+        badge.className = "px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-500 border border-slate-200";
+      }
+      badge.innerText = adminFeaturedStatus;
+    }
+
+    function renderAdminFeaturedList() {
+      const container = document.getElementById('admin-featured-list');
+      if (adminFeaturedGames.length === 0) {
+        container.innerHTML = `<div class="p-8 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">No games found for Week ${adminViewedWeek}</div>`;
+        return;
+      }
+
+      let html = '';
+      
+      adminFeaturedGames.forEach(game => {
+        const isSelected = adminSelectedFeatured.includes(game.id);
+        const cardStyle = isSelected ? 'border-amber-400 bg-amber-50 shadow-md ring-1 ring-amber-400' : 'border-slate-200 bg-white shadow-sm';
+        const teamTextStyle = isSelected ? 'text-amber-900' : 'text-slate-800';
+        
+        html += `
+          <div class="mb-3 cursor-pointer transition-all transform active:scale-[0.98]" onclick="toggleAdminFeatured('${game.id}')">
+            <div class="flex items-stretch h-16 rounded-xl border ${cardStyle} overflow-hidden">
+              <div class="flex-1 flex items-center justify-start px-3">
+                ${game.awayLogo ? `<img src="${game.awayLogo}" class="w-7 h-7 object-contain mr-2">` : ''}
+                <span class="font-bold tracking-tight text-sm sm:text-base ${teamTextStyle}">${game.away}</span>
+              </div>
+              
+              <div class="w-16 flex flex-col items-center justify-center border-x ${isSelected ? 'border-amber-200 bg-amber-100/50' : 'border-slate-100 bg-slate-50'}">
+                <span class="${isSelected ? 'text-amber-500' : 'text-slate-400'} font-black text-sm leading-none">@</span>
+              </div>
+
+              <div class="flex-1 flex items-center justify-end px-3">
+                <span class="font-bold tracking-tight text-sm sm:text-base ${teamTextStyle}">${game.home}</span>
+                ${game.homeLogo ? `<img src="${game.homeLogo}" class="w-7 h-7 object-contain ml-2">` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      
+      container.innerHTML = html;
+    }
+
+    function toggleAdminFeatured(gameId) {
+      const index = adminSelectedFeatured.indexOf(gameId);
+      if (index > -1) {
+        adminSelectedFeatured.splice(index, 1); // Deselect
+      } else {
+        adminSelectedFeatured.push(gameId); // Select
+      }
+      renderAdminFeaturedList();
+    }
+
+    async function saveAdminFeatured(targetStatus) {
+      const saveBtn = document.getElementById('admin-feat-save-btn');
+      const liveBtn = document.getElementById('admin-feat-live-btn');
+      saveBtn.disabled = true; liveBtn.disabled = true;
+      saveBtn.classList.add('opacity-50'); liveBtn.classList.add('opacity-50');
+
+      const res = await apiCall({
+        action: 'admin_set_featured',
+        email: state.email,
+        week: adminViewedWeek,
+        games: adminSelectedFeatured,
+        status: targetStatus
+      });
+
+      saveBtn.disabled = false; liveBtn.disabled = false;
+      saveBtn.classList.remove('opacity-50'); liveBtn.classList.remove('opacity-50');
+
+      if (res && res.success) {
+        adminFeaturedStatus = targetStatus;
+        updateAdminFeaturedStatusUI();
+      } else {
+        alert(res.message || "Failed to save featured games.");
+      }
+    }
+
     // --- PICKS & CONFIDENCE LOGIC --- //
 
-    function populateWeekDropdown() {
-      const selector = document.getElementById('week-selector');
+    function populateWeekDropdown(elementId, targetValue) {
+      const selector = document.getElementById(elementId);
+      if (!selector) return;
       let html = '';
       for(let w = 1; w <= 18; w++) {
         if (w === state.currentWeek) {
@@ -387,7 +491,7 @@
         }
       }
       selector.innerHTML = html;
-      selector.value = state.viewedWeek;
+      selector.value = targetValue;
     }
 
     function handleWeekChange(newWeek) {
@@ -417,6 +521,7 @@
             if (matchingGame) userPicks[matchingGame.id] = p.choice;
           });
 
+          // Re-order games according to confidence rank from DB
           currentWeekGames.sort((a, b) => {
             const pickA = res.picks.find(p => p.game === a.id);
             const pickB = res.picks.find(p => p.game === b.id);
@@ -447,30 +552,77 @@
         const confidenceVal = totalGames - index; 
         const pickedTeam = userPicks[game.id] || null;
         
-        const awaySelected = pickedTeam === game.away ? 'border-green-500 bg-green-50' : 'border-transparent bg-white';
-        const homeSelected = pickedTeam === game.home ? 'border-green-500 bg-green-50' : 'border-transparent bg-white';
+        const isLocked = game.status === 'Live' || game.status === 'Final';
+        const rowClass = isLocked ? 'pick-row locked-game' : 'pick-row';
+        const lockIcon = isLocked ? `<span class="text-[10px] mt-0.5">🔒</span>` : '';
+
+        let awayStyle = 'border-transparent bg-white';
+        let homeStyle = 'border-transparent bg-white';
+
+        if (pickedTeam === game.away) {
+          if (!isLocked) awayStyle = 'border-blue-500 bg-blue-50 text-blue-900';
+          else if (game.status === 'Live') awayStyle = 'border-amber-400 bg-amber-50 text-amber-900';
+          else if (game.status === 'Final' && game.winner === game.away) awayStyle = 'border-emerald-500 bg-emerald-50 text-emerald-900';
+          else if (game.status === 'Final') awayStyle = 'border-red-500 bg-red-50 text-red-900';
+        }
+        
+        if (pickedTeam === game.home) {
+          if (!isLocked) homeStyle = 'border-blue-500 bg-blue-50 text-blue-900';
+          else if (game.status === 'Live') homeStyle = 'border-amber-400 bg-amber-50 text-amber-900';
+          else if (game.status === 'Final' && game.winner === game.home) homeStyle = 'border-emerald-500 bg-emerald-50 text-emerald-900';
+          else if (game.status === 'Final') homeStyle = 'border-red-500 bg-red-50 text-red-900';
+        }
+
+        let tickerDisplay = `<span class="text-slate-400 font-medium tracking-widest uppercase">Scheduled</span>`;
+        if (game.status === 'Live' || game.status === 'Final') {
+          tickerDisplay = `
+            <span class="font-bold text-slate-300 w-12 text-left">${game.away} <span class="${game.winner===game.away?'text-white':''}">${game.awayScore}</span></span>
+            <span class="font-bold text-amber-400 text-[9px] uppercase tracking-wider">${game.clock || game.status}</span>
+            <span class="font-bold text-slate-300 w-12 text-right"><span class="${game.winner===game.home?'text-white':''}">${game.homeScore}</span> ${game.home}</span>
+          `;
+        }
+
+        let featuredVisual = `<span class="text-slate-400 font-bold text-sm leading-none">@</span>`;
+        if (game.featured) {
+          featuredVisual = `
+            <div class="relative flex items-center justify-center w-full h-full text-amber-500">
+              <span class="absolute -top-1 text-[10px]">🔥</span>
+              <span class="absolute left-1.5 text-[10px]">🔥</span>
+              <span class="absolute right-1.5 text-[10px]">🔥</span>
+              <span class="font-black text-sm z-10 leading-none">@</span>
+            </div>
+          `;
+        }
 
         html += `
-          <div class="pick-row flex items-center mb-3" data-game-id="${game.id}">
-            <div class="confidence-legend w-10 h-16 flex items-center justify-center font-black text-slate-400 bg-slate-100 rounded-l-xl border border-slate-200 border-r-0 text-lg shadow-sm">
-              ${confidenceVal}
-            </div>
+          <div class="${rowClass} flex flex-col mb-4 drop-shadow-sm" data-game-id="${game.id}">
             
-            <div class="flex-1 flex items-stretch h-16 bg-white rounded-r-xl border border-slate-200 shadow-sm overflow-hidden">
-              <button onclick="selectTeam(this, '${game.id}', '${game.away}')" class="team-btn away-btn flex-1 flex items-center justify-start px-3 border-2 ${awaySelected} transition-colors active:bg-slate-50">
-                ${game.awayLogo ? `<img src="${game.awayLogo}" class="w-7 h-7 object-contain mr-2">` : ''}
-                <span class="font-bold text-slate-800 tracking-tight">${game.away}</span>
-              </button>
-              
-              <div class="drag-handle w-16 flex flex-col items-center justify-center bg-slate-50 border-x border-slate-100 hover:bg-slate-100 transition-colors cursor-grab active:cursor-grabbing">
-                <span class="text-slate-400 font-bold text-sm leading-none">@</span>
-                <span class="text-[9px] text-slate-400 mt-1 font-medium whitespace-nowrap px-1">${game.dateString}</span>
+            <div class="flex items-stretch h-16 w-full">
+              <div class="confidence-legend w-10 flex flex-col items-center justify-center font-black text-slate-400 bg-slate-100 rounded-tl-xl border border-slate-200 border-r-0 text-lg">
+                <span class="leading-none">${confidenceVal}</span>
+                ${lockIcon}
               </div>
+              
+              <div class="flex-1 flex items-stretch bg-white rounded-tr-xl border border-slate-200 overflow-hidden relative">
+                <button onclick="selectTeam(this, '${game.id}', '${game.away}', ${isLocked})" class="team-btn away-btn flex-1 flex items-center justify-start px-3 border-2 ${awayStyle} transition-colors ${isLocked ? 'cursor-default' : 'active:bg-slate-50'}">
+                  ${game.awayLogo ? `<img src="${game.awayLogo}" class="w-7 h-7 object-contain mr-2">` : ''}
+                  <span class="font-bold tracking-tight text-sm sm:text-base">${game.away}</span>
+                </button>
+                
+                <div class="drag-handle w-16 flex flex-col items-center justify-center bg-slate-50 border-x border-slate-100 ${isLocked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-100 transition-colors cursor-grab active:cursor-grabbing'}">
+                  ${featuredVisual}
+                  <span class="text-[8px] text-slate-400 mt-1 font-medium whitespace-nowrap px-1 uppercase tracking-wider">${game.dateString}</span>
+                </div>
 
-              <button onclick="selectTeam(this, '${game.id}', '${game.home}')" class="team-btn home-btn flex-1 flex items-center justify-end px-3 border-2 ${homeSelected} transition-colors active:bg-slate-50">
-                <span class="font-bold text-slate-800 tracking-tight">${game.home}</span>
-                ${game.homeLogo ? `<img src="${game.homeLogo}" class="w-7 h-7 object-contain ml-2">` : ''}
-              </button>
+                <button onclick="selectTeam(this, '${game.id}', '${game.home}', ${isLocked})" class="team-btn home-btn flex-1 flex items-center justify-end px-3 border-2 ${homeStyle} transition-colors ${isLocked ? 'cursor-default' : 'active:bg-slate-50'}">
+                  <span class="font-bold tracking-tight text-sm sm:text-base">${game.home}</span>
+                  ${game.homeLogo ? `<img src="${game.homeLogo}" class="w-7 h-7 object-contain ml-2">` : ''}
+                </button>
+              </div>
+            </div>
+
+            <div class="flex justify-between items-center bg-slate-800 text-[10px] text-slate-100 rounded-b-xl px-4 py-1.5 ml-10 border border-slate-800 shadow-inner">
+              ${tickerDisplay}
             </div>
           </div>
         `;
@@ -485,6 +637,7 @@
         animation: 200,
         ghostClass: 'sortable-ghost',
         dragClass: 'sortable-drag',
+        filter: '.locked-game', 
         onEnd: function () {
           updateConfidenceNumbers();
           markUnsaved();
@@ -492,17 +645,22 @@
       });
     }
 
-    function selectTeam(buttonEl, gameId, selectedTeam) {
-      userPicks[gameId] = selectedTeam;
-      
+    function selectTeam(buttonEl, gameId, selectedTeam, isLocked) {
+      if (isLocked) return; 
+
       const row = buttonEl.closest('.pick-row');
       const awayBtn = row.querySelector('.away-btn');
       const homeBtn = row.querySelector('.home-btn');
-      
-      awayBtn.className = awayBtn.className.replace('border-green-500 bg-green-50', 'border-transparent bg-white');
-      homeBtn.className = homeBtn.className.replace('border-green-500 bg-green-50', 'border-transparent bg-white');
-      
-      buttonEl.className = buttonEl.className.replace('border-transparent bg-white', 'border-green-500 bg-green-50');
+
+      if (userPicks[gameId] === selectedTeam) {
+        userPicks[gameId] = '';
+        buttonEl.className = buttonEl.className.replace('border-blue-500 bg-blue-50 text-blue-900', 'border-transparent bg-white');
+      } else {
+        userPicks[gameId] = selectedTeam;
+        awayBtn.className = awayBtn.className.replace('border-blue-500 bg-blue-50 text-blue-900', 'border-transparent bg-white');
+        homeBtn.className = homeBtn.className.replace('border-blue-500 bg-blue-50 text-blue-900', 'border-transparent bg-white');
+        buttonEl.className = buttonEl.className.replace('border-transparent bg-white', 'border-blue-500 bg-blue-50 text-blue-900');
+      }
       
       markUnsaved();
     }
@@ -546,12 +704,10 @@
 
     function updateSaveBarUI() {
       const statusBadge = document.getElementById('save-status-badge');
-      const saveBtn = document.getElementById('save-picks-btn');
       
       if (hasUnsavedChanges) {
         statusBadge.innerText = "Unsaved Changes";
         statusBadge.className = "text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800";
-        saveBtn.classList.remove('opacity-70');
       } else {
         statusBadge.innerText = "All Saved";
         statusBadge.className = "text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800";
@@ -560,7 +716,7 @@
 
     async function handleSavePicks() {
       const saveBtn = document.getElementById('save-picks-btn');
-      saveBtn.innerText = 'Saving...';
+      saveBtn.innerText = 'SAVING...';
       saveBtn.disabled = true;
 
       const rows = document.querySelectorAll('#picks-list .pick-row');
@@ -586,7 +742,7 @@
         picks: picksPayload
       });
 
-      saveBtn.innerText = 'Save Picks';
+      saveBtn.innerText = 'SAVE PICKS';
       saveBtn.disabled = false;
 
       if (res && res.success) {
@@ -677,10 +833,10 @@
       </form>
     </div>
 
+    <!-- Home View -->
     <div id="home-view" class="view-container hidden space-y-4 mt-6">
       <h2 class="text-2xl font-bold px-1 text-slate-800">Dashboard</h2>
       
-      <!-- Unified Weekly Picks Block -->
       <button onclick="attemptNavigation('weekly-menu-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
         <div class="flex items-center"><span class="text-2xl mr-3">🏈</span><span class="font-semibold text-lg text-slate-700">Weekly Picks</span></div>
         <div class="flex items-center">
@@ -689,13 +845,11 @@
         </div>
       </button>
 
-      <!-- Leaderboard Block -->
       <button onclick="attemptNavigation('leaderboard-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
         <div class="flex items-center"><span class="text-2xl mr-3">🏆</span><span class="font-semibold text-lg text-slate-700">Leaderboard</span></div>
         <span class="text-slate-400">→</span>
       </button>
       
-      <!-- Account Block -->
       <button onclick="attemptNavigation('account-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
         <div class="flex items-center"><span class="text-2xl mr-3">👤</span><span class="font-semibold text-lg text-slate-700">My Account</span></div>
         <div class="flex items-center">
@@ -724,8 +878,8 @@
 
     <!-- Account View -->
     <div id="account-view" class="view-container hidden mt-6">
+      <!-- ... [Keep Account View DOM exactly as it was] ... -->
       <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">My Account</h2>
-      
       <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">Display Name</label>
@@ -746,17 +900,14 @@
 
         <div id="payment-options" class="hidden space-y-4 mt-4 border-t border-slate-100 pt-4">
           <p class="text-sm text-slate-600 mb-2">Please submit your $50.00 league dues using one of the methods below:</p>
-
           <a href="https://venmo.com/Jon-Jobb?txn=pay&amount=50.00&note=NFL_Confidence_2026" target="_blank" class="block w-full bg-[#008CFF] text-white text-center font-bold py-3 rounded-xl shadow-sm hover:bg-[#0074D4] transition">
             Pay with Venmo
           </a>
-
           <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center flex flex-col items-center">
             <a href="https://www.zellepay.com/" target="_blank" class="block font-black text-[#741ff5] mb-2 hover:underline text-xl">Pay with Zelle</a>
             <span class="block text-sm font-medium text-slate-700">jonjobb@gmail.com</span>
             <span class="block text-sm font-medium text-slate-700 mt-1">(708)-642-7783</span>
           </div>
-
           <button onclick="notifyAdminPayment()" id="notify-payment-btn" class="w-full bg-slate-900 text-white font-bold py-3 rounded-xl mt-4 hover:bg-slate-800 transition shadow-sm">
             Notify Admin of Payment
           </button>
@@ -772,8 +923,9 @@
           <div class="flex items-center"><span class="text-2xl mr-3">👥</span><span class="font-semibold text-lg text-slate-700">Manage Users</span></div>
           <span class="text-slate-400">→</span>
         </button>
-        <button class="w-full bg-slate-50 p-5 rounded-2xl border border-slate-100 flex items-center justify-between opacity-60 cursor-not-allowed">
-          <div class="flex items-center"><span class="text-2xl mr-3">⭐</span><span class="font-semibold text-lg text-slate-500">Set Featured Games</span></div>
+        <button onclick="attemptNavigation('admin-featured-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
+          <div class="flex items-center"><span class="text-2xl mr-3">⭐</span><span class="font-semibold text-lg text-slate-700">Set Featured Games</span></div>
+          <span class="text-slate-400">→</span>
         </button>
         <button class="w-full bg-slate-50 p-5 rounded-2xl border border-slate-100 flex items-center justify-between opacity-60 cursor-not-allowed">
           <div class="flex items-center"><span class="text-2xl mr-3">📝</span><span class="font-semibold text-lg text-slate-500">Write League Post</span></div>
@@ -786,12 +938,11 @@
 
     <!-- Admin Users View -->
     <div id="admin-users-view" class="view-container hidden mt-6">
+      <!-- ... [Keep Admin Users View DOM exactly as it was] ... -->
       <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">Manage Users</h2>
-      
       <button onclick="promptAdminAddUser()" class="w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl shadow-md hover:bg-slate-800 transition mb-4">
         + Add New User
       </button>
-
       <div class="flex gap-2 mb-4">
         <input type="text" id="admin-search" onkeyup="filterAdminUsers()" placeholder="Search name or email..." class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-slate-500">
         <select id="admin-filter" onchange="filterAdminUsers()" class="w-32 border border-slate-300 rounded-lg px-2 py-2 text-sm outline-none focus:border-slate-500 bg-white">
@@ -801,13 +952,41 @@
           <option value="Unpaid">Unpaid</option>
         </select>
       </div>
-
       <div id="admin-users-list"></div>
     </div>
 
-    <!-- Picks View -->
+    <!-- Admin Featured Games View -->
+    <div id="admin-featured-view" class="view-container hidden mt-6">
+      
+      <div class="flex items-center justify-between px-1 mb-2">
+        <div class="relative">
+          <select id="admin-featured-week-selector" onchange="handleAdminFeaturedWeekChange(this.value)" class="text-2xl font-bold text-slate-800 bg-transparent border-none outline-none cursor-pointer appearance-none pr-6 z-10 relative focus:ring-0">
+          </select>
+          <div class="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">▼</div>
+        </div>
+        <div class="flex flex-col items-end">
+          <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Current Status</span>
+          <span id="admin-featured-status-badge" class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-500 border border-slate-200">Not Set</span>
+        </div>
+      </div>
+
+      <p class="text-xs text-slate-500 mb-4 px-1">Tap a game to select it as Featured for the week.</p>
+
+      <div id="admin-featured-list" class="mb-4"></div>
+
+      <div class="fixed left-0 right-0 max-w-md mx-auto px-4 z-30 bottom-sticky-bar flex gap-3">
+        <button id="admin-feat-save-btn" onclick="saveAdminFeatured('Pending')" class="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm py-4 rounded-2xl transition active:scale-95 shadow-md">
+          Save for Later
+        </button>
+        <button id="admin-feat-live-btn" onclick="saveAdminFeatured('Live')" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm py-4 rounded-2xl transition active:scale-95 shadow-md">
+          Push Live
+        </button>
+      </div>
+    </div>
+
+    <!-- Confidence Picks View -->
     <div id="picks-view" class="view-container hidden mt-6">
-      <div class="flex items-center justify-between px-1 mb-4">
+      <div class="flex items-center justify-between px-1 mb-2">
         <div class="relative">
           <select id="week-selector" onchange="handleWeekChange(this.value)" class="text-2xl font-bold text-slate-800 bg-transparent border-none outline-none cursor-pointer appearance-none pr-6 z-10 relative focus:ring-0">
           </select>
@@ -816,23 +995,24 @@
         <span id="save-status-badge" class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">All Saved</span>
       </div>
       
-      <p class="text-xs text-slate-500 mb-4 px-1">Tap a team to select winner. Drag the <b>@</b> symbol to rank by confidence.</p>
+      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm mb-5 text-[11px] text-slate-500 leading-relaxed px-4">
+        <ul class="list-disc pl-3 space-y-1">
+          <li>Tap a team to select or deselect.</li>
+          <li>Drag the <b>@</b> symbol to rank (Top = 16 pts).</li>
+          <li><span class="text-amber-500 font-bold">🔥</span> indicates a Featured Game.</li>
+        </ul>
+      </div>
 
       <div id="picks-list" class="mb-4"></div>
       
       <div class="fixed left-0 right-0 max-w-md mx-auto px-4 z-30 bottom-sticky-bar">
-        <div class="bg-slate-900/90 backdrop-blur-md p-3 rounded-2xl shadow-lg border border-slate-800 flex items-center justify-between">
-          <div class="text-white text-xs pl-2">
-            <span class="font-bold block">Confidence Slate</span>
-            <span class="text-slate-400">Top = Highest Confidence</span>
-          </div>
-          <button id="save-picks-btn" onclick="handleSavePicks()" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm px-6 py-2.5 rounded-xl transition active:scale-95 shadow-md">
-            Save Picks
-          </button>
-        </div>
+        <button id="save-picks-btn" onclick="handleSavePicks()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black text-lg py-4 rounded-2xl transition active:scale-95 shadow-lg drop-shadow-md">
+          SAVE PICKS
+        </button>
       </div>
     </div>
 
+    <!-- Prop Plays & Leaderboard -->
     <div id="props-view" class="view-container hidden mt-6">
       <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">Prop Plays</h2>
       <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 text-center text-slate-500">
@@ -874,7 +1054,6 @@
     </div>
   </div>
 
-  <!-- Service Worker Cache Busting Script -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
