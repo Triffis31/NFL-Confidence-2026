@@ -229,20 +229,16 @@
         loadAndRenderProps();
       }
 
-      if (viewId === 'leaderboard-menu-view') {
-        fetchLeaderboardData();
-      }
-
       if (viewId === 'season-leaderboard-view') {
-        renderSeasonLeaderboard('Total'); 
+        loadSeasonLeaderboard('Total'); 
       }
 
       if (viewId === 'prop-leaderboard-view') {
-        renderSubLeaderboard('dynamicPropPts');
+        loadSubLeaderboard('dynamicPropPts');
       }
 
       if (viewId === 'featured-leaderboard-view') {
-        renderSubLeaderboard('featPts');
+        loadSubLeaderboard('featPts');
       }
 
       if (viewId === 'account-view') {
@@ -269,6 +265,22 @@
       }
     }
 
+    async function loadSubLeaderboard(key) {
+      const titleEl = document.getElementById('sub-leaderboard-title');
+      if (key === 'dynamicPropPts') titleEl.innerText = "Prop Leaderboard";
+      if (key === 'featPts') titleEl.innerText = "Featured Leaderboard";
+      
+      document.getElementById('sub-leaderboard-container').innerHTML = '<div class="py-8 text-center text-slate-400">Loading data...</div>';
+      await fetchLeaderboardData();
+      renderSubLeaderboard(key);
+    }
+
+    async function loadSeasonLeaderboard(type) {
+      document.getElementById('season-leaderboard-container').innerHTML = '<div class="py-8 text-center text-slate-400">Loading data...</div>';
+      await fetchLeaderboardData();
+      renderSeasonLeaderboard(type);
+    }
+
     function calculateRanks(array, key) {
       let sorted = [...array].sort((a, b) => b[key] - a[key]);
       let rank = 1;
@@ -283,15 +295,8 @@
 
     function renderSubLeaderboard(key) {
       const container = document.getElementById('sub-leaderboard-container');
-      const titleEl = document.getElementById('sub-leaderboard-title');
-      
-      let title = "";
-      if (key === 'dynamicPropPts') title = "Prop Leaderboard";
-      if (key === 'featPts') title = "Featured Leaderboard";
-      titleEl.innerText = title;
-
       if (lbDataRaw.users.length === 0) {
-        container.innerHTML = '<div class="p-6 text-center text-slate-400">Loading or no data available.</div>';
+        container.innerHTML = '<div class="p-6 text-center text-slate-400">No data available.</div>';
         return;
       }
 
@@ -350,7 +355,7 @@
     function renderSeasonTotalGrid() {
       const container = document.getElementById('season-leaderboard-container');
       if (lbDataRaw.users.length === 0) {
-        container.innerHTML = '<div class="p-6 text-center text-slate-400">Loading or no data available.</div>';
+        container.innerHTML = '<div class="p-6 text-center text-slate-400">No data available.</div>';
         return;
       }
 
@@ -391,7 +396,7 @@
     function renderSeasonWeeklyGrid() {
       const container = document.getElementById('season-leaderboard-container');
       if (lbDataRaw.users.length === 0) {
-        container.innerHTML = '<div class="p-6 text-center text-slate-400">Loading or no data available.</div>';
+        container.innerHTML = '<div class="p-6 text-center text-slate-400">No data available.</div>';
         return;
       }
 
@@ -1387,7 +1392,6 @@
     
     <div id="featured-leaderboard-view" class="view-container hidden mt-6">
       <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">Featured Leaderboard</h2>
-      <!-- Reusing the sub-leaderboard container function, it writes to the ID below -->
       <div id="sub-leaderboard-container"></div>
     </div>
 
