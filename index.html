@@ -90,9 +90,9 @@
           state.role = res.role;
           state.paid = res.paid;
           state.currentWeek = res.currentWeek || 1;
-          state.viewedWeek = state.currentWeek;
+          state.viewedWeek = res.currentWeek || 1;
           state.missingPicks = res.missingPicks || false;
-          adminViewedWeek = state.currentWeek;
+          adminViewedWeek = res.currentWeek || 1;
           
           if (res.needsName) {
             await promptForDisplayName();
@@ -886,14 +886,27 @@
       currentProps.forEach(prop => {
         const currentChoice = propPicks[prop.title] || '';
         let inputHtml = '';
+        
+        const isLocked = prop.locked === true;
+        const isConfirmed = prop.status === 'Confirmed';
+        const displayOutcome = isConfirmed ? prop.outcome : 'TBD';
+
+        let resultBadge = '';
+        if (isConfirmed && currentChoice) {
+          if (String(currentChoice).trim().toLowerCase() === String(prop.outcome).trim().toLowerCase()) {
+            resultBadge = `<span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded ml-2 uppercase">Correct</span>`;
+          } else {
+            resultBadge = `<span class="bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded ml-2 uppercase">Incorrect</span>`;
+          }
+        }
 
         if (prop.type === 'Radio Button (Yes/No)') {
           const isYes = currentChoice === 'Yes';
           const isNo = currentChoice === 'No';
           inputHtml = `
             <div class="flex gap-3">
-              <button onclick="selectProp('${prop.title}', 'Yes')" class="flex-1 py-3 font-bold rounded-xl border-2 transition-colors ${isYes ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}">Yes</button>
-              <button onclick="selectProp('${prop.title}', 'No')" class="flex-1 py-3 font-bold rounded-xl border-2 transition-colors ${isNo ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}">No</button>
+              <button onclick="${isLocked ? '' : `selectProp('${prop.title}', 'Yes')`}" class="flex-1 py-3 font-bold rounded-xl border-2 transition-colors ${isYes ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-200 text-slate-500'} ${!isLocked && !isYes ? 'hover:bg-slate-50' : ''} ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}">Yes</button>
+              <button onclick="${isLocked ? '' : `selectProp('${prop.title}', 'No')`}" class="flex-1 py-3 font-bold rounded-xl border-2 transition-colors ${isNo ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-200 text-slate-500'} ${!isLocked && !isNo ? 'hover:bg-slate-50' : ''} ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}">No</button>
             </div>
           `;
         } else if (prop.type === 'Dropdown (Team)') {
@@ -903,7 +916,7 @@
           });
           inputHtml = `
             <div class="relative">
-              <select onchange="selectProp('${prop.title}', this.value)" class="w-full bg-white border-2 border-slate-200 text-slate-800 font-semibold rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 appearance-none outline-none">
+              <select onchange="selectProp('${prop.title}', this.value)" ${isLocked ? 'disabled' : ''} class="w-full border-2 border-slate-200 text-slate-800 font-semibold rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 appearance-none outline-none ${isLocked ? 'opacity-60 cursor-not-allowed bg-slate-50' : 'bg-white'}">
                 ${options}
               </select>
               <div class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs">▼</div>
@@ -916,7 +929,7 @@
           });
           inputHtml = `
             <div class="relative">
-              <select onchange="selectProp('${prop.title}', this.value)" class="w-full bg-white border-2 border-slate-200 text-slate-800 font-semibold rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 appearance-none outline-none">
+              <select onchange="selectProp('${prop.title}', this.value)" ${isLocked ? 'disabled' : ''} class="w-full border-2 border-slate-200 text-slate-800 font-semibold rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 appearance-none outline-none ${isLocked ? 'opacity-60 cursor-not-allowed bg-slate-50' : 'bg-white'}">
                 ${options}
               </select>
               <div class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs">▼</div>
@@ -926,9 +939,18 @@
 
         html += `
           <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-4">
-            <h3 class="font-bold text-slate-800 text-lg mb-1 leading-tight">${prop.title}</h3>
+            <div class="flex justify-between items-start mb-1">
+              <h3 class="font-bold text-slate-800 text-lg leading-tight flex items-center">
+                ${prop.title}
+                ${isLocked ? '<span class="ml-2 text-base">🔒</span>' : ''}
+              </h3>
+            </div>
             <p class="text-sm text-slate-500 mb-4 leading-snug">${prop.description}</p>
             ${inputHtml}
+            <div class="mt-4 bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600 flex justify-between items-center">
+              <span class="font-bold uppercase tracking-wider text-[10px] text-slate-400">Result</span>
+              <div class="font-semibold flex items-center">${displayOutcome} ${resultBadge}</div>
+            </div>
           </div>
         `;
       });
