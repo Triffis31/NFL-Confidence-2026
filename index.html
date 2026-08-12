@@ -45,6 +45,13 @@
         0 -4px 6px #ea580c, 
         0 -6px 8px #dc2626;
     }
+
+    /* Grid Styles for Weekly Leaderboard */
+    .table-sticky-col-1 { position: sticky; left: 0; background-color: #f8fafc; z-index: 10; min-width: 90px; max-width: 90px; }
+    .table-sticky-col-2 { position: sticky; left: 90px; background-color: #f8fafc; z-index: 10; min-width: 50px; max-width: 50px; border-right: 1px solid #e2e8f0;}
+    .table-sticky-header { position: sticky; top: 0; background-color: #f1f5f9; z-index: 20; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .table-sticky-intersect-1 { z-index: 30 !important; }
+    .table-sticky-intersect-2 { z-index: 30 !important; }
   </style>
 
   <script>
@@ -57,16 +64,21 @@
       missingPropPicks: false 
     };
     
+    // Pick Data
     let currentWeekGames = [];
     let userPicks = {}; 
     let hasUnsavedChanges = false;
     let savedPicksSnapshot = null; 
     
+    // Prop Data
     let currentProps = [];
     let propPicks = {};
     let propTeams = [];
     let propGames = [];
     let hasUnsavedPropChanges = false;
+
+    // Leaderboard Data
+    let lbDataRaw = { users: [], weekly: {} };
     
     let pendingNavigationTarget = null;
     let sortableInstance = null;
@@ -214,6 +226,23 @@
         loadAndRenderProps();
       }
 
+      if (viewId === 'leaderboard-menu-view') {
+        // Fetch data once for all leaderboards when entering the menu
+        fetchLeaderboardData();
+      }
+
+      if (viewId === 'season-leaderboard-view') {
+        renderSeasonLeaderboard('Total'); // Default to Total
+      }
+
+      if (viewId === 'prop-leaderboard-view') {
+        renderSubLeaderboard('propPts');
+      }
+
+      if (viewId === 'featured-leaderboard-view') {
+        renderSubLeaderboard('featPts');
+      }
+
       if (viewId === 'account-view') {
         renderAccountView();
       }
@@ -228,53 +257,174 @@
       }
     }
 
-    async function handleLogin(e) {
-      e.preventDefault();
-      const email = document.getElementById('email').value;
-      const code = document.getElementById('code').value;
-      const btn = document.getElementById('login-btn');
-      const errorText = document.getElementById('login-error');
-      
-      btn.innerText = 'Logging in...';
-      btn.disabled = true;
-      btn.classList.add('opacity-50');
-      errorText.classList.add('hidden');
+    // --- LEADERBOARD LOGIC --- //
 
-      const res = await apiCall({ action: 'login', email, code });
-      
-      if (res.success) {
-        localStorage.setItem('nfl_email', email);
-        localStorage.setItem('nfl_code', code);
-        state.email = email;
-        state.name = res.name;
-        state.role = res.role;
-        state.paid = res.paid;
-        state.currentWeek = res.currentWeek || 1;
-        state.viewedWeek = res.currentWeek || 1;
-        state.missingConfidencePicks = res.missingConfidencePicks || false;
-        state.missingPropPicks = res.missingPropPicks || false;
-        adminViewedWeek = res.currentWeek || 1;
-
-        if (res.needsName) {
-          await promptForDisplayName();
-        }
-
-        document.getElementById('login-view').classList.add('hidden');
-        document.getElementById('bottom-nav').classList.remove('hidden');
-        
-        if (state.role === 'Admin') {
-           document.getElementById('admin-nav-btn').classList.remove('hidden');
-        }
-
-        navigate('home-view', true);
-      } else {
-        errorText.innerText = res.message;
-        errorText.classList.remove('hidden');
+    async function fetchLeaderboardData() {
+      // Show loading states on buttons if desired, or just load in background
+      const res = await apiCall({ action: 'get_leaderboards' });
+      if (res && res.success) {
+        lbDataRaw.users = res.users || [];
+        lbDataRaw.weekly = res.weekly || {};
       }
+    }
+
+    // Dynamic tie-breaker ranking logic
+    function calculateRanks(array, key) {
+      let sorted = [...array].sort((a, b) => b[key] - a[key]);
+      let rank = 1;
+      for (let i = 0; i < sorted.length; i++) {
+        if (i > 0 && sorted[i][key] < sorted[i - 1][key]) {
+          rank = i + 1;
+        }
+        sorted[i].rank = rank;
+      }
+      return sorted;
+    }
+
+    function renderSubLeaderboard(key) {
+      const container = document.getElementById('sub-leaderboard-container');
+      const titleEl = document.getElementById('sub-leaderboard-title');
       
-      btn.innerText = 'Log In';
-      btn.disabled = false;
-      btn.classList.remove('opacity-50');
+      if (key === 'propPts') titleEl.innerText = "Prop Leaderboard";
+      if (key === 'featPts') titleEl.innerText = "Featured Leaderboard";
+
+      if (lbDataRaw.users.length === 0) {
+        container.innerHTML = '<div class="p-6 text-center text-slate-400">Loading or no data available.</div>';
+        return;
+      }
+
+      const rankedData = calculateRanks(lbDataRaw.users, key);
+
+      let html = `
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold sticky top-0">
+              <tr>
+                <th class="p-3 w-12 text-center">Rank</th>
+                <th class="p-3">Name</th>
+                <th class="p-3 text-right">Points</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+      `;
+
+      rankedData.forEach(u => {
+        const isMe = u.name === state.name ? 'bg-blue-50/50 font-semibold' : '';
+        html += `
+          <tr class="hover:bg-slate-50 transition-colors ${isMe}">
+            <td class="p-3 text-center font-bold text-slate-400">${u.rank}</td>
+            <td class="p-3 text-slate-800">${u.name}</td>
+            <td class="p-3 text-right font-bold text-slate-700">${u[key]}</td>
+          </tr>
+        `;
+      });
+
+      html += `</tbody></table></div>`;
+      container.innerHTML = html;
+    }
+
+    function renderSeasonLeaderboard(type) {
+      // Toggle button UI
+      const btnTotal = document.getElementById('season-tab-total');
+      const btnWeekly = document.getElementById('season-tab-weekly');
+      
+      if (type === 'Total') {
+        btnTotal.className = "flex-1 py-2 font-bold text-sm bg-white text-slate-800 rounded-lg shadow-sm border border-slate-200 transition-all";
+        btnWeekly.className = "flex-1 py-2 font-bold text-sm text-slate-500 hover:text-slate-700 transition-all";
+        renderSeasonTotalGrid();
+      } else {
+        btnWeekly.className = "flex-1 py-2 font-bold text-sm bg-white text-slate-800 rounded-lg shadow-sm border border-slate-200 transition-all";
+        btnTotal.className = "flex-1 py-2 font-bold text-sm text-slate-500 hover:text-slate-700 transition-all";
+        renderSeasonWeeklyGrid();
+      }
+    }
+
+    function renderSeasonTotalGrid() {
+      const container = document.getElementById('season-leaderboard-container');
+      if (lbDataRaw.users.length === 0) {
+        container.innerHTML = '<div class="p-6 text-center text-slate-400">Loading or no data available.</div>';
+        return;
+      }
+
+      const rankedData = calculateRanks(lbDataRaw.users, 'totalPts');
+
+      let html = `
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <table class="w-full text-left text-xs sm:text-sm">
+            <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold sticky top-0 z-20">
+              <tr>
+                <th class="p-3 w-10 text-center">Rnk</th>
+                <th class="p-3">Name</th>
+                <th class="p-3 text-center">Picks</th>
+                <th class="p-3 text-center">Props</th>
+                <th class="p-3 text-right text-slate-800">Total</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+      `;
+
+      rankedData.forEach(u => {
+        const isMe = u.name === state.name ? 'bg-blue-50/50 font-semibold' : '';
+        html += `
+          <tr class="hover:bg-slate-50 transition-colors ${isMe}">
+            <td class="p-3 text-center font-bold text-slate-400">${u.rank}</td>
+            <td class="p-3 text-slate-800 truncate max-w-[90px]">${u.name}</td>
+            <td class="p-3 text-center text-slate-500">${u.pickPts}</td>
+            <td class="p-3 text-center text-slate-500">${u.propPts}</td>
+            <td class="p-3 text-right font-black text-slate-800">${u.totalPts}</td>
+          </tr>
+        `;
+      });
+
+      html += `</tbody></table></div>`;
+      container.innerHTML = html;
+    }
+
+    function renderSeasonWeeklyGrid() {
+      const container = document.getElementById('season-leaderboard-container');
+      if (lbDataRaw.users.length === 0) {
+        container.innerHTML = '<div class="p-6 text-center text-slate-400">Loading or no data available.</div>';
+        return;
+      }
+
+      // Sort users by Total Points to display rank order down the side
+      const rankedData = calculateRanks(lbDataRaw.users, 'totalPts');
+
+      let html = `
+        <div class="overflow-x-auto h-[60vh] border border-slate-200 rounded-xl relative shadow-sm bg-white custom-scrollbar">
+          <table class="w-full text-[10px] text-center border-collapse">
+            <thead class="table-sticky-header text-slate-500 font-bold">
+              <tr>
+                <th class="p-2 border-b border-slate-200 table-sticky-col-1 table-sticky-intersect-1 shadow-[1px_0_0_#e2e8f0]">Name</th>
+                <th class="p-2 border-b border-slate-200 table-sticky-col-2 table-sticky-intersect-2 text-slate-800 shadow-[1px_0_0_#e2e8f0]">Total</th>
+      `;
+
+      for(let w = 1; w <= 18; w++) {
+        html += `<th class="p-2 border-b border-slate-200 min-w-[36px]">W${w}</th>`;
+      }
+
+      html += `</tr></thead><tbody class="divide-y divide-slate-100">`;
+
+      rankedData.forEach(u => {
+        const isMe = u.name === state.name ? 'bg-blue-50/50' : 'bg-white';
+        const isMeText = u.name === state.name ? 'font-bold text-blue-900' : 'font-semibold text-slate-800';
+        
+        html += `
+          <tr class="hover:bg-slate-50 transition-colors">
+            <td class="p-2 border-r border-slate-100 table-sticky-col-1 text-left ${isMe} ${isMeText} truncate">${u.name}</td>
+            <td class="p-2 table-sticky-col-2 font-black text-slate-800 ${isMe}">${u.totalPts}</td>
+        `;
+
+        for(let w = 1; w <= 18; w++) {
+          const weekScore = (lbDataRaw.weekly[u.name] && lbDataRaw.weekly[u.name][w]) ? lbDataRaw.weekly[u.name][w] : '-';
+          html += `<td class="p-2 text-slate-600">${weekScore}</td>`;
+        }
+        
+        html += `</tr>`;
+      });
+
+      html += `</tbody></table></div>`;
+      container.innerHTML = html;
     }
 
     // --- ACCOUNT LOGIC --- //
@@ -1156,7 +1306,7 @@
         </div>
       </button>
 
-      <button onclick="attemptNavigation('leaderboard-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
+      <button onclick="attemptNavigation('leaderboard-menu-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
         <div class="flex items-center"><span class="text-2xl mr-3">🏆</span><span class="font-semibold text-lg text-slate-700">Leaderboard</span></div>
         <span class="text-slate-400">→</span>
       </button>
@@ -1191,6 +1341,47 @@
           </div>
         </button>
       </div>
+    </div>
+
+    <!-- Leaderboard Menu View -->
+    <div id="leaderboard-menu-view" class="view-container hidden mt-6">
+      <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">Leaderboards</h2>
+      <div class="space-y-4">
+        <button onclick="attemptNavigation('season-leaderboard-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
+          <div class="flex items-center"><span class="text-2xl mr-3">🏈</span><span class="font-semibold text-lg text-slate-700">Season Leaderboard</span></div>
+          <span class="text-slate-400">→</span>
+        </button>
+        <button onclick="attemptNavigation('prop-leaderboard-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
+          <div class="flex items-center"><span class="text-2xl mr-3">🎯</span><span class="font-semibold text-lg text-slate-700">Prop Leaderboard</span></div>
+          <span class="text-slate-400">→</span>
+        </button>
+        <button onclick="attemptNavigation('featured-leaderboard-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
+          <div class="flex items-center"><span class="text-2xl mr-3">🔥</span><span class="font-semibold text-lg text-slate-700">Featured Leaderboard</span></div>
+          <span class="text-slate-400">→</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Season Leaderboard View -->
+    <div id="season-leaderboard-view" class="view-container hidden mt-6">
+      <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">Season Leaderboard</h2>
+      <div class="flex gap-2 mb-4 bg-slate-100 p-1 rounded-xl">
+        <button id="season-tab-total" onclick="renderSeasonLeaderboard('Total')" class="flex-1 py-2 font-bold text-sm bg-white text-slate-800 rounded-lg shadow-sm border border-slate-200 transition-all">Total</button>
+        <button id="season-tab-weekly" onclick="renderSeasonLeaderboard('Weekly')" class="flex-1 py-2 font-bold text-sm text-slate-500 hover:text-slate-700 transition-all">Weekly</button>
+      </div>
+      <div id="season-leaderboard-container"></div>
+    </div>
+
+    <!-- Sub Leaderboard Views (Prop / Featured) -->
+    <div id="prop-leaderboard-view" class="view-container hidden mt-6">
+      <h2 id="sub-leaderboard-title" class="text-2xl font-bold px-1 mb-4 text-slate-800">Leaderboard</h2>
+      <div id="sub-leaderboard-container"></div>
+    </div>
+    
+    <div id="featured-leaderboard-view" class="view-container hidden mt-6">
+      <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">Featured Leaderboard</h2>
+      <!-- Reusing the sub-leaderboard container function, it writes to the ID below -->
+      <div id="sub-leaderboard-container"></div>
     </div>
 
     <!-- Account View -->
@@ -1353,19 +1544,12 @@
       </div>
     </div>
 
-    <div id="leaderboard-view" class="view-container hidden mt-6">
-      <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">Leaderboard</h2>
-      <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 text-center text-slate-500">
-        Leaderboard construction pending.
-      </div>
-    </div>
-
   </main>
 
   <nav id="bottom-nav" class="hidden fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-200 px-6 py-3 flex justify-around text-xs font-semibold text-slate-400 z-40 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.02)]">
     <button onclick="attemptNavigation('home-view')" class="flex flex-col items-center hover:text-slate-900 transition"><span class="text-xl mb-1">🏠</span>Home</button>
     <button onclick="attemptNavigation('weekly-menu-view')" class="flex flex-col items-center hover:text-slate-900 transition"><span class="text-xl mb-1">🏈</span>Picks</button>
-    <button onclick="attemptNavigation('leaderboard-view')" class="flex flex-col items-center hover:text-slate-900 transition"><span class="text-xl mb-1">🏆</span>Board</button>
+    <button onclick="attemptNavigation('leaderboard-menu-view')" class="flex flex-col items-center hover:text-slate-900 transition"><span class="text-xl mb-1">🏆</span>Board</button>
     <button id="admin-nav-btn" onclick="attemptNavigation('admin-menu-view')" class="hidden flex flex-col items-center hover:text-slate-900 transition"><span class="text-xl mb-1">⚙️</span>Admin</button>
   </nav>
 
