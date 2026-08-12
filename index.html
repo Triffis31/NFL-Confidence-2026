@@ -440,13 +440,13 @@
         const teamTextStyle = isSelected ? 'text-orange-900' : 'text-slate-800';
         
         let centerClasses = `w-20 flex flex-col items-center justify-center border-x`;
-        let featuredVisual = `<span class="text-slate-400 font-black text-sm leading-none mt-1 mb-0.5">@</span>`;
+        let featuredVisual = `<span class="text-slate-400 font-black text-sm leading-none my-1">@</span>`;
         let topTextClass = "text-slate-400";
         let bottomTextClass = "text-slate-400";
         
         if (isSelected) {
           centerClasses += ` fire-bg`;
-          featuredVisual = `<span class="fire-text font-black text-xl leading-none mt-1 mb-0.5">@</span>`;
+          featuredVisual = `<span class="fire-text font-black text-xl leading-none my-1">@</span>`;
           topTextClass = "text-orange-100";
           bottomTextClass = "text-orange-100";
         } else {
