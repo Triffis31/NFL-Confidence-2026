@@ -440,13 +440,13 @@
         const teamTextStyle = isSelected ? 'text-orange-900' : 'text-slate-800';
         
         let centerClasses = `w-20 flex flex-col items-center justify-center border-x`;
-        let featuredVisual = `<span class="text-slate-400 font-black text-sm leading-none my-1">@</span>`;
+        let featuredVisual = `<span class="text-slate-400 font-black text-sm leading-none mt-1 mb-0.5">@</span>`;
         let topTextClass = "text-slate-400";
         let bottomTextClass = "text-slate-400";
         
         if (isSelected) {
           centerClasses += ` fire-bg`;
-          featuredVisual = `<span class="fire-text font-black text-xl leading-none my-1">@</span>`;
+          featuredVisual = `<span class="fire-text font-black text-xl leading-none mt-1 mb-0.5">@</span>`;
           topTextClass = "text-orange-100";
           bottomTextClass = "text-orange-100";
         } else {
@@ -462,9 +462,10 @@
               </div>
               
               <div class="${centerClasses}">
-                <span class="text-[9px] ${topTextClass} font-bold leading-none text-center">${game.spread || ''}</span>
+                <span class="text-[9px] ${topTextClass} font-bold leading-none text-center pt-1">${game.spread || ''}</span>
                 ${featuredVisual}
-                <span class="text-[9px] ${bottomTextClass} font-bold leading-none text-center">${game.ou ? 'O/U ' + game.ou : ''}</span>
+                <span class="text-[9px] ${bottomTextClass} font-bold leading-none text-center mb-0.5">${game.ou ? 'O/U ' + game.ou : ''}</span>
+                <span class="text-[8px] ${bottomTextClass} font-medium whitespace-nowrap px-1 uppercase tracking-wider pb-1">${game.dateString}</span>
               </div>
 
               <div class="flex-1 flex items-center justify-end px-3">
@@ -558,6 +559,7 @@
             if (matchingGame) userPicks[matchingGame.id] = p.choice;
           });
 
+          // Re-order games according to confidence rank from DB
           currentWeekGames.sort((a, b) => {
             const pickA = res.picks.find(p => p.game === a.id);
             const pickB = res.picks.find(p => p.game === b.id);
@@ -590,7 +592,7 @@
         
         const isLocked = game.locked === true;
         const rowClass = isLocked ? 'pick-row locked-game' : 'pick-row';
-        const lockIcon = isLocked ? `<span class="text-[10px] mt-0.5">🔒</span>` : '';
+        const lockIcon = isLocked ? `<span class="text-base mt-0.5">🔒</span>` : '';
 
         let awayStyle = 'border-transparent bg-white';
         let homeStyle = 'border-transparent bg-white';
@@ -621,12 +623,12 @@
         }
 
         let dragHandleClasses = `drag-handle w-20 flex flex-col items-center justify-center border-x ${isLocked ? 'opacity-50 cursor-not-allowed' : 'transition-colors cursor-grab active:cursor-grabbing'}`;
-        let featuredVisual = `<span class="text-slate-400 font-bold text-sm leading-none my-1">@</span>`;
+        let featuredVisual = `<span class="text-slate-400 font-bold text-sm leading-none mt-1 mb-0.5">@</span>`;
         let dateColorClass = "text-slate-400";
 
         if (game.featured) {
           dragHandleClasses += ` fire-bg ${isLocked ? '' : 'hover:brightness-110'}`;
-          featuredVisual = `<span class="fire-text font-black text-xl leading-none my-1">@</span>`;
+          featuredVisual = `<span class="fire-text font-black text-xl leading-none mt-1 mb-0.5">@</span>`;
           dateColorClass = "text-orange-100";
         } else {
           dragHandleClasses += ` bg-slate-50 border-slate-100 ${isLocked ? '' : 'hover:bg-slate-100'}`;
@@ -1031,7 +1033,7 @@
         <ul class="list-disc pl-3 space-y-1">
           <li>Tap a team to select or deselect.</li>
           <li>Drag the <b>@</b> symbol to rank (Top = 16 pts).</li>
-          <li>A <span class="text-orange-600 font-bold">fiery orange center</span> indicates a Featured Game.</li>
+          <li>A <span class="text-orange-600 font-bold">fiery orange center</span> indicates a Featured Game worth <b>2x points</b>.</li>
         </ul>
       </div>
 
