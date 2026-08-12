@@ -31,6 +31,20 @@
     .sortable-drag { box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15); cursor: grabbing !important; }
     .drag-handle { cursor: grab; }
     .drag-handle:active { cursor: grabbing; }
+
+    /* Custom Fire Effects */
+    .fire-bg {
+      background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+      border-color: #c2410c !important;
+    }
+    .fire-text {
+      color: #fffbeb;
+      text-shadow: 
+        0 0 2px #fef08a, 
+        0 -2px 4px #eab308, 
+        0 -4px 6px #ea580c, 
+        0 -6px 8px #dc2626;
+    }
   </style>
 
   <script>
@@ -224,12 +238,14 @@
     }
 
     // --- ACCOUNT LOGIC --- //
-    // ... [Keep renderAccountView, saveProfile, notifyAdminPayment exactly as they are] ...
+
     function renderAccountView() {
       document.getElementById('profile-name').value = state.name || '';
       document.getElementById('profile-email').value = state.email || '';
+
       const badge = document.getElementById('payment-status-badge');
       const paymentOptions = document.getElementById('payment-options');
+
       if (state.paid === true) {
         badge.innerText = "Paid";
         badge.className = "px-3 py-1 rounded-full text-xs font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200";
@@ -250,13 +266,16 @@
       const btn = document.getElementById('save-profile-btn');
       btn.innerText = 'Saving...';
       btn.disabled = true;
+
       const res = await apiCall({ action: 'update_name', email: state.email, name: nameInput });
+      
       if (res && res.success) {
         state.name = res.name;
         alert("Profile updated successfully!");
       } else {
         alert(res.message || "Error saving profile.");
       }
+
       btn.innerText = 'Save Name';
       btn.disabled = false;
     }
@@ -265,7 +284,9 @@
       const btn = document.getElementById('notify-payment-btn');
       btn.innerText = 'Notifying...';
       btn.disabled = true;
+
       const res = await apiCall({ action: 'notify_payment', email: state.email });
+      
       if (res && res.success) {
         state.paid = 'Pending';
         renderAccountView();
@@ -277,7 +298,7 @@
     }
 
     // --- ADMIN USERS LOGIC --- //
-    // ... [Keep loadAdminUsers, filterAdminUsers, renderAdminUsersList, handleAdminUserAction, promptAdminAddUser exactly as they are] ...
+
     async function loadAdminUsers() {
       document.getElementById('admin-users-list').innerHTML = '<div class="py-8 text-center text-slate-400">Loading users...</div>';
       const res = await apiCall({ action: 'admin_get_users', email: state.email });
@@ -415,8 +436,18 @@
       
       adminFeaturedGames.forEach(game => {
         const isSelected = adminSelectedFeatured.includes(game.id);
-        const cardStyle = isSelected ? 'border-amber-400 bg-amber-50 shadow-md ring-1 ring-amber-400' : 'border-slate-200 bg-white shadow-sm';
-        const teamTextStyle = isSelected ? 'text-amber-900' : 'text-slate-800';
+        const cardStyle = isSelected ? 'border-orange-500 bg-orange-50 shadow-md ring-1 ring-orange-500' : 'border-slate-200 bg-white shadow-sm';
+        const teamTextStyle = isSelected ? 'text-orange-900' : 'text-slate-800';
+        
+        let centerClasses = `w-16 flex flex-col items-center justify-center border-x`;
+        let featuredVisual = `<span class="text-slate-400 font-black text-sm leading-none">@</span>`;
+        
+        if (isSelected) {
+          centerClasses += ` fire-bg`;
+          featuredVisual = `<span class="fire-text font-black text-xl leading-none">@</span>`;
+        } else {
+          centerClasses += ` border-slate-100 bg-slate-50`;
+        }
         
         html += `
           <div class="mb-3 cursor-pointer transition-all transform active:scale-[0.98]" onclick="toggleAdminFeatured('${game.id}')">
@@ -426,8 +457,8 @@
                 <span class="font-bold tracking-tight text-sm sm:text-base ${teamTextStyle}">${game.away}</span>
               </div>
               
-              <div class="w-16 flex flex-col items-center justify-center border-x ${isSelected ? 'border-amber-200 bg-amber-100/50' : 'border-slate-100 bg-slate-50'}">
-                <span class="${isSelected ? 'text-amber-500' : 'text-slate-400'} font-black text-sm leading-none">@</span>
+              <div class="${centerClasses}">
+                ${featuredVisual}
               </div>
 
               <div class="flex-1 flex items-center justify-end px-3">
@@ -445,9 +476,9 @@
     function toggleAdminFeatured(gameId) {
       const index = adminSelectedFeatured.indexOf(gameId);
       if (index > -1) {
-        adminSelectedFeatured.splice(index, 1); // Deselect
+        adminSelectedFeatured.splice(index, 1); 
       } else {
-        adminSelectedFeatured.push(gameId); // Select
+        adminSelectedFeatured.push(gameId); 
       }
       renderAdminFeaturedList();
     }
@@ -582,16 +613,17 @@
           `;
         }
 
+        // Feature Game Flame Logic
+        let dragHandleClasses = `drag-handle w-16 flex flex-col items-center justify-center border-x ${isLocked ? 'opacity-50 cursor-not-allowed' : 'transition-colors cursor-grab active:cursor-grabbing'}`;
         let featuredVisual = `<span class="text-slate-400 font-bold text-sm leading-none">@</span>`;
+        let dateColorClass = "text-slate-400";
+
         if (game.featured) {
-          featuredVisual = `
-            <div class="relative flex items-center justify-center w-full h-full text-amber-500">
-              <span class="absolute -top-1 text-[10px]">🔥</span>
-              <span class="absolute left-1.5 text-[10px]">🔥</span>
-              <span class="absolute right-1.5 text-[10px]">🔥</span>
-              <span class="font-black text-sm z-10 leading-none">@</span>
-            </div>
-          `;
+          dragHandleClasses += ` fire-bg ${isLocked ? '' : 'hover:brightness-110'}`;
+          featuredVisual = `<span class="fire-text font-black text-xl leading-none">@</span>`;
+          dateColorClass = "text-orange-100";
+        } else {
+          dragHandleClasses += ` bg-slate-50 border-slate-100 ${isLocked ? '' : 'hover:bg-slate-100'}`;
         }
 
         html += `
@@ -609,9 +641,9 @@
                   <span class="font-bold tracking-tight text-sm sm:text-base">${game.away}</span>
                 </button>
                 
-                <div class="drag-handle w-16 flex flex-col items-center justify-center bg-slate-50 border-x border-slate-100 ${isLocked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-100 transition-colors cursor-grab active:cursor-grabbing'}">
+                <div class="${dragHandleClasses}">
                   ${featuredVisual}
-                  <span class="text-[8px] text-slate-400 mt-1 font-medium whitespace-nowrap px-1 uppercase tracking-wider">${game.dateString}</span>
+                  <span class="text-[8px] ${dateColorClass} mt-1 font-medium whitespace-nowrap px-1 uppercase tracking-wider">${game.dateString}</span>
                 </div>
 
                 <button onclick="selectTeam(this, '${game.id}', '${game.home}', ${isLocked})" class="team-btn home-btn flex-1 flex items-center justify-end px-3 border-2 ${homeStyle} transition-colors ${isLocked ? 'cursor-default' : 'active:bg-slate-50'}">
@@ -878,7 +910,6 @@
 
     <!-- Account View -->
     <div id="account-view" class="view-container hidden mt-6">
-      <!-- ... [Keep Account View DOM exactly as it was] ... -->
       <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">My Account</h2>
       <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
         <div>
@@ -938,7 +969,6 @@
 
     <!-- Admin Users View -->
     <div id="admin-users-view" class="view-container hidden mt-6">
-      <!-- ... [Keep Admin Users View DOM exactly as it was] ... -->
       <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">Manage Users</h2>
       <button onclick="promptAdminAddUser()" class="w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl shadow-md hover:bg-slate-800 transition mb-4">
         + Add New User
@@ -957,7 +987,6 @@
 
     <!-- Admin Featured Games View -->
     <div id="admin-featured-view" class="view-container hidden mt-6">
-      
       <div class="flex items-center justify-between px-1 mb-2">
         <div class="relative">
           <select id="admin-featured-week-selector" onchange="handleAdminFeaturedWeekChange(this.value)" class="text-2xl font-bold text-slate-800 bg-transparent border-none outline-none cursor-pointer appearance-none pr-6 z-10 relative focus:ring-0">
@@ -969,11 +998,8 @@
           <span id="admin-featured-status-badge" class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-500 border border-slate-200">Not Set</span>
         </div>
       </div>
-
       <p class="text-xs text-slate-500 mb-4 px-1">Tap a game to select it as Featured for the week.</p>
-
       <div id="admin-featured-list" class="mb-4"></div>
-
       <div class="fixed left-0 right-0 max-w-md mx-auto px-4 z-30 bottom-sticky-bar flex gap-3">
         <button id="admin-feat-save-btn" onclick="saveAdminFeatured('Pending')" class="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm py-4 rounded-2xl transition active:scale-95 shadow-md">
           Save for Later
@@ -999,7 +1025,7 @@
         <ul class="list-disc pl-3 space-y-1">
           <li>Tap a team to select or deselect.</li>
           <li>Drag the <b>@</b> symbol to rank (Top = 16 pts).</li>
-          <li><span class="text-amber-500 font-bold">🔥</span> indicates a Featured Game.</li>
+          <li>A <span class="text-orange-600 font-bold">fiery orange center</span> indicates a Featured Game.</li>
         </ul>
       </div>
 
@@ -1012,7 +1038,6 @@
       </div>
     </div>
 
-    <!-- Prop Plays & Leaderboard -->
     <div id="props-view" class="view-container hidden mt-6">
       <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">Prop Plays</h2>
       <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 text-center text-slate-500">
@@ -1045,7 +1070,6 @@
         <button onclick="resolveUnsavedChoice('continue')" class="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold py-3 rounded-xl transition text-sm shadow-sm">
           Continue Editing
         </button>
-        
         <div class="flex gap-3">
           <button onclick="resolveUnsavedChoice('discard')" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl transition text-sm shadow-md">Discard</button>
           <button onclick="resolveUnsavedChoice('save')" class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition text-sm shadow-md">Save</button>
