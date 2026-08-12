@@ -558,7 +558,6 @@
             if (matchingGame) userPicks[matchingGame.id] = p.choice;
           });
 
-          // Re-order games according to confidence rank from DB
           currentWeekGames.sort((a, b) => {
             const pickA = res.picks.find(p => p.game === a.id);
             const pickB = res.picks.find(p => p.game === b.id);
@@ -589,7 +588,7 @@
         const confidenceVal = totalGames - index; 
         const pickedTeam = userPicks[game.id] || null;
         
-        const isLocked = game.status === 'Live' || game.status === 'STATUS_IN_PROGRESS' || game.status === 'Final' || game.status === 'STATUS_FINAL';
+        const isLocked = game.locked === true;
         const rowClass = isLocked ? 'pick-row locked-game' : 'pick-row';
         const lockIcon = isLocked ? `<span class="text-[10px] mt-0.5">🔒</span>` : '';
 
@@ -598,23 +597,25 @@
 
         if (pickedTeam === game.away) {
           if (!isLocked) awayStyle = 'border-blue-500 bg-blue-50 text-blue-900';
-          else if (game.status === 'Live' || game.status === 'STATUS_IN_PROGRESS') awayStyle = 'border-amber-400 bg-amber-50 text-amber-900';
-          else if ((game.status === 'Final' || game.status === 'STATUS_FINAL') && game.winner === game.away) awayStyle = 'border-emerald-500 bg-emerald-50 text-emerald-900';
-          else if (game.status === 'Final' || game.status === 'STATUS_FINAL') awayStyle = 'border-red-500 bg-red-50 text-red-900';
+          else if (game.status === 'STATUS_IN_PROGRESS') awayStyle = 'border-amber-400 bg-amber-50 text-amber-900';
+          else if (game.status === 'STATUS_FINAL' && game.winner === game.away) awayStyle = 'border-emerald-500 bg-emerald-50 text-emerald-900';
+          else if (game.status === 'STATUS_FINAL') awayStyle = 'border-red-500 bg-red-50 text-red-900';
+          else awayStyle = 'border-slate-300 bg-slate-50 text-slate-800'; // Locked but not live yet
         }
         
         if (pickedTeam === game.home) {
           if (!isLocked) homeStyle = 'border-blue-500 bg-blue-50 text-blue-900';
-          else if (game.status === 'Live' || game.status === 'STATUS_IN_PROGRESS') homeStyle = 'border-amber-400 bg-amber-50 text-amber-900';
-          else if ((game.status === 'Final' || game.status === 'STATUS_FINAL') && game.winner === game.home) homeStyle = 'border-emerald-500 bg-emerald-50 text-emerald-900';
-          else if (game.status === 'Final' || game.status === 'STATUS_FINAL') homeStyle = 'border-red-500 bg-red-50 text-red-900';
+          else if (game.status === 'STATUS_IN_PROGRESS') homeStyle = 'border-amber-400 bg-amber-50 text-amber-900';
+          else if (game.status === 'STATUS_FINAL' && game.winner === game.home) homeStyle = 'border-emerald-500 bg-emerald-50 text-emerald-900';
+          else if (game.status === 'STATUS_FINAL') homeStyle = 'border-red-500 bg-red-50 text-red-900';
+          else homeStyle = 'border-slate-300 bg-slate-50 text-slate-800'; // Locked but not live yet
         }
 
         let tickerDisplay = `<span class="text-slate-400 font-medium tracking-widest uppercase">Scheduled</span>`;
-        if (game.status === 'Live' || game.status === 'STATUS_IN_PROGRESS' || game.status === 'Final' || game.status === 'STATUS_FINAL') {
+        if (game.status === 'STATUS_IN_PROGRESS' || game.status === 'STATUS_FINAL') {
           tickerDisplay = `
             <span class="font-bold text-slate-300 w-12 text-left">${game.away} <span class="${game.winner===game.away?'text-white':''}">${game.awayScore}</span></span>
-            <span class="font-bold text-amber-400 text-[9px] uppercase tracking-wider">${game.clock || 'LIVE'}</span>
+            <span class="font-bold text-amber-400 text-[9px] uppercase tracking-wider">${game.clock || game.status.replace('STATUS_', '')}</span>
             <span class="font-bold text-slate-300 w-12 text-right"><span class="${game.winner===game.home?'text-white':''}">${game.homeScore}</span> ${game.home}</span>
           `;
         }
