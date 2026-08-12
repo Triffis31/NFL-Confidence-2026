@@ -50,7 +50,12 @@
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbytRjT4CzCA4MN-xE0t-Fz-Prffq2Hs8x6RkDgNiDDdssuk2Rt12iy9HyWbxwupBNCBLw/exec"; 
     
-    let state = { email: '', name: '', role: 'Member', paid: false, currentWeek: 1, viewedWeek: 1, missingPicks: false };
+    let state = { 
+      email: '', name: '', role: 'Member', paid: 'Unpaid', 
+      currentWeek: 1, viewedWeek: 1, 
+      missingConfidencePicks: false, 
+      missingPropPicks: false 
+    };
     
     let currentWeekGames = [];
     let userPicks = {}; 
@@ -91,7 +96,8 @@
           state.paid = res.paid;
           state.currentWeek = res.currentWeek || 1;
           state.viewedWeek = res.currentWeek || 1;
-          state.missingPicks = res.missingPicks || false;
+          state.missingConfidencePicks = res.missingConfidencePicks || false;
+          state.missingPropPicks = res.missingPropPicks || false;
           adminViewedWeek = res.currentWeek || 1;
           
           if (res.needsName) {
@@ -168,18 +174,33 @@
         const nameBadge = document.getElementById('missing-name-badge');
         
         if (unpaidBadge) {
-          if (state.paid === false) unpaidBadge.classList.remove('hidden');
+          if (state.paid === 'Unpaid' || state.paid === false) unpaidBadge.classList.remove('hidden');
           else unpaidBadge.classList.add('hidden');
         }
         
         if (picksBadge) {
-          if (state.missingPicks) picksBadge.classList.remove('hidden');
+          if (state.missingConfidencePicks || state.missingPropPicks) picksBadge.classList.remove('hidden');
           else picksBadge.classList.add('hidden');
         }
 
         if (nameBadge) {
           if (!state.name || state.name.trim() === '') nameBadge.classList.remove('hidden');
           else nameBadge.classList.add('hidden');
+        }
+      }
+
+      if (viewId === 'weekly-menu-view') {
+        const confBadge = document.getElementById('missing-confidence-badge');
+        const propBadge = document.getElementById('missing-props-badge');
+        
+        if (confBadge) {
+          if (state.missingConfidencePicks) confBadge.classList.remove('hidden');
+          else confBadge.classList.add('hidden');
+        }
+        
+        if (propBadge) {
+          if (state.missingPropPicks) propBadge.classList.remove('hidden');
+          else propBadge.classList.add('hidden');
         }
       }
       
@@ -230,7 +251,8 @@
         state.paid = res.paid;
         state.currentWeek = res.currentWeek || 1;
         state.viewedWeek = res.currentWeek || 1;
-        state.missingPicks = res.missingPicks || false;
+        state.missingConfidencePicks = res.missingConfidencePicks || false;
+        state.missingPropPicks = res.missingPropPicks || false;
         adminViewedWeek = res.currentWeek || 1;
 
         if (res.needsName) {
@@ -263,19 +285,24 @@
 
       const badge = document.getElementById('payment-status-badge');
       const paymentOptions = document.getElementById('payment-options');
+      
+      const displayPaid = String(state.paid);
 
-      if (state.paid === true) {
-        badge.innerText = "Paid";
+      if (displayPaid.startsWith('Paid')) {
+        badge.innerText = displayPaid;
         badge.className = "px-3 py-1 rounded-full text-xs font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200";
         paymentOptions.classList.add('hidden');
-      } else if (state.paid === 'Pending') {
-        badge.innerText = "Pending";
+      } else if (displayPaid.startsWith('Pending')) {
+        badge.innerText = displayPaid;
         badge.className = "px-3 py-1 rounded-full text-xs font-bold uppercase bg-amber-100 text-amber-800 border border-amber-200";
         paymentOptions.classList.add('hidden');
       } else {
         badge.innerText = "Unpaid";
         badge.className = "px-3 py-1 rounded-full text-xs font-bold uppercase bg-red-100 text-red-800 border border-red-200";
         paymentOptions.classList.remove('hidden');
+        
+        document.getElementById('notify-step-1').classList.remove('hidden');
+        document.getElementById('notify-step-2').classList.add('hidden');
       }
     }
 
@@ -298,20 +325,25 @@
       btn.disabled = false;
     }
 
-    async function notifyAdminPayment() {
-      const btn = document.getElementById('notify-payment-btn');
-      btn.innerText = 'Notifying...';
-      btn.disabled = true;
+    async function notifyAdminPayment(method) {
+      const vBtn = document.getElementById('notify-venmo-btn');
+      const zBtn = document.getElementById('notify-zelle-btn');
+      
+      if (vBtn) vBtn.disabled = true;
+      if (zBtn) zBtn.disabled = true;
 
-      const res = await apiCall({ action: 'notify_payment', email: state.email });
+      if (method === 'Venmo' && vBtn) vBtn.innerText = 'Notifying...';
+      if (method === 'Zelle' && zBtn) zBtn.innerText = 'Notifying...';
+
+      const res = await apiCall({ action: 'notify_payment', email: state.email, method: method });
       
       if (res && res.success) {
-        state.paid = 'Pending';
+        state.paid = res.newStatus;
         renderAccountView();
       } else {
         alert(res.message || "Error notifying admin.");
-        btn.innerText = 'Notify Admin of Payment';
-        btn.disabled = false;
+        if (vBtn) { vBtn.disabled = false; vBtn.innerText = 'Venmo'; }
+        if (zBtn) { zBtn.disabled = false; zBtn.innerText = 'Zelle'; }
       }
     }
 
@@ -333,7 +365,7 @@
       const filter = document.getElementById('admin-filter').value;
       const filtered = adminUsersData.filter(u => {
         const matchSearch = u.name.toLowerCase().includes(search) || u.email.toLowerCase().includes(search);
-        const matchFilter = filter === 'All' || u.paid === filter;
+        const matchFilter = filter === 'All' || String(u.paid).startsWith(filter);
         return matchSearch && matchFilter;
       });
       renderAdminUsersList(filtered);
@@ -348,8 +380,9 @@
       let html = '';
       users.forEach(u => {
         let badgeClass = '';
-        if (u.paid === 'Paid') badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-200';
-        else if (u.paid === 'Pending') badgeClass = 'bg-amber-100 text-amber-800 border-amber-200';
+        let displayPaid = String(u.paid);
+        if (displayPaid.startsWith('Paid')) badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-200';
+        else if (displayPaid.startsWith('Pending')) badgeClass = 'bg-amber-100 text-amber-800 border-amber-200';
         else badgeClass = 'bg-red-100 text-red-800 border-red-200';
 
         html += `
@@ -359,7 +392,7 @@
                 <div class="font-bold text-slate-800 truncate">${u.name}</div>
                 <div class="text-xs text-slate-500 truncate">${u.email}</div>
               </div>
-              <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${badgeClass}">${u.paid}</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${badgeClass}">${displayPaid}</span>
             </div>
             <div class="flex justify-end border-t border-slate-50 pt-2">
               <select onchange="handleAdminUserAction(this, '${u.email}')" class="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50 outline-none text-slate-600 font-medium">
@@ -827,7 +860,13 @@
         
         if (state.viewedWeek === state.currentWeek) {
           const hasBlank = picksPayload.some(p => p.choice === '');
-          state.missingPicks = hasBlank;
+          state.missingConfidencePicks = hasBlank;
+          
+          const picksBadge = document.getElementById('missing-confidence-badge');
+          if (picksBadge) {
+             if (state.missingConfidencePicks) picksBadge.classList.remove('hidden');
+             else picksBadge.classList.add('hidden');
+          }
         }
 
         takePicksSnapshot();
@@ -991,6 +1030,23 @@
 
       if (res && res.success) {
         hasUnsavedPropChanges = false;
+        
+        if (state.viewedWeek === state.currentWeek) {
+          let hasMissing = false;
+          currentProps.forEach(prop => {
+            if (!propPicks[prop.title] || propPicks[prop.title] === '') {
+              hasMissing = true;
+            }
+          });
+          state.missingPropPicks = hasMissing;
+
+          const propBadge = document.getElementById('missing-props-badge');
+          if (propBadge) {
+             if (state.missingPropPicks) propBadge.classList.remove('hidden');
+             else propBadge.classList.add('hidden');
+          }
+        }
+
         updateSaveBarUI('props');
         return true;
       } else {
@@ -1121,12 +1177,18 @@
       <div class="space-y-4">
         <button onclick="attemptNavigation('picks-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
           <div class="flex items-center"><span class="text-2xl mr-3">📊</span><span class="font-semibold text-lg text-slate-700">Confidence Picks</span></div>
-          <span class="text-slate-400">→</span>
+          <div class="flex items-center">
+            <span id="missing-confidence-badge" class="hidden w-3 h-3 bg-red-500 rounded-full shadow-sm mr-3 animate-pulse"></span>
+            <span class="text-slate-400">→</span>
+          </div>
         </button>
         
         <button onclick="attemptNavigation('props-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
           <div class="flex items-center"><span class="text-2xl mr-3">🎯</span><span class="font-semibold text-lg text-slate-700">Prop Picks</span></div>
-          <span class="text-slate-400">→</span>
+          <div class="flex items-center">
+            <span id="missing-props-badge" class="hidden w-3 h-3 bg-red-500 rounded-full shadow-sm mr-3 animate-pulse"></span>
+            <span class="text-slate-400">→</span>
+          </div>
         </button>
       </div>
     </div>
@@ -1162,9 +1224,19 @@
             <span class="block text-sm font-medium text-slate-700">jonjobb@gmail.com</span>
             <span class="block text-sm font-medium text-slate-700 mt-1">(708)-642-7783</span>
           </div>
-          <button onclick="notifyAdminPayment()" id="notify-payment-btn" class="w-full bg-slate-900 text-white font-bold py-3 rounded-xl mt-4 hover:bg-slate-800 transition shadow-sm">
-            Notify Admin of Payment
-          </button>
+
+          <div id="notify-step-1">
+            <button onclick="document.getElementById('notify-step-1').classList.add('hidden'); document.getElementById('notify-step-2').classList.remove('hidden');" class="w-full bg-slate-900 text-white font-bold py-3 rounded-xl mt-4 hover:bg-slate-800 transition shadow-sm">
+              Notify Admin of Payment
+            </button>
+          </div>
+          <div id="notify-step-2" class="hidden mt-4">
+            <p class="text-sm font-semibold text-slate-700 mb-2 text-center">Which method did you use?</p>
+            <div class="flex gap-3">
+              <button id="notify-venmo-btn" onclick="notifyAdminPayment('Venmo')" class="flex-1 bg-[#008CFF] text-white font-bold py-3 rounded-xl hover:bg-[#0074D4] transition shadow-sm">Venmo</button>
+              <button id="notify-zelle-btn" onclick="notifyAdminPayment('Zelle')" class="flex-1 bg-[#741ff5] text-white font-bold py-3 rounded-xl hover:bg-[#5b15c4] transition shadow-sm">Zelle</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
