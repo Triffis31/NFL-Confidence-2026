@@ -439,26 +439,32 @@
         const cardStyle = isSelected ? 'border-orange-500 bg-orange-50 shadow-md ring-1 ring-orange-500' : 'border-slate-200 bg-white shadow-sm';
         const teamTextStyle = isSelected ? 'text-orange-900' : 'text-slate-800';
         
-        let centerClasses = `w-16 flex flex-col items-center justify-center border-x`;
-        let featuredVisual = `<span class="text-slate-400 font-black text-sm leading-none">@</span>`;
+        let centerClasses = `w-20 flex flex-col items-center justify-center border-x`;
+        let featuredVisual = `<span class="text-slate-400 font-black text-sm leading-none my-1">@</span>`;
+        let topTextClass = "text-slate-400";
+        let bottomTextClass = "text-slate-400";
         
         if (isSelected) {
           centerClasses += ` fire-bg`;
-          featuredVisual = `<span class="fire-text font-black text-xl leading-none">@</span>`;
+          featuredVisual = `<span class="fire-text font-black text-xl leading-none my-1">@</span>`;
+          topTextClass = "text-orange-100";
+          bottomTextClass = "text-orange-100";
         } else {
           centerClasses += ` border-slate-100 bg-slate-50`;
         }
         
         html += `
           <div class="mb-3 cursor-pointer transition-all transform active:scale-[0.98]" onclick="toggleAdminFeatured('${game.id}')">
-            <div class="flex items-stretch h-16 rounded-xl border ${cardStyle} overflow-hidden">
+            <div class="flex items-stretch h-20 rounded-xl border ${cardStyle} overflow-hidden">
               <div class="flex-1 flex items-center justify-start px-3">
                 ${game.awayLogo ? `<img src="${game.awayLogo}" class="w-7 h-7 object-contain mr-2">` : ''}
                 <span class="font-bold tracking-tight text-sm sm:text-base ${teamTextStyle}">${game.away}</span>
               </div>
               
               <div class="${centerClasses}">
+                <span class="text-[9px] ${topTextClass} font-bold leading-none text-center">${game.spread || ''}</span>
                 ${featuredVisual}
+                <span class="text-[9px] ${bottomTextClass} font-bold leading-none text-center">${game.ou ? 'O/U ' + game.ou : ''}</span>
               </div>
 
               <div class="flex-1 flex items-center justify-end px-3">
@@ -583,7 +589,7 @@
         const confidenceVal = totalGames - index; 
         const pickedTeam = userPicks[game.id] || null;
         
-        const isLocked = game.status === 'Live' || game.status === 'Final';
+        const isLocked = game.status === 'Live' || game.status === 'STATUS_IN_PROGRESS' || game.status === 'Final' || game.status === 'STATUS_FINAL';
         const rowClass = isLocked ? 'pick-row locked-game' : 'pick-row';
         const lockIcon = isLocked ? `<span class="text-[10px] mt-0.5">🔒</span>` : '';
 
@@ -592,35 +598,34 @@
 
         if (pickedTeam === game.away) {
           if (!isLocked) awayStyle = 'border-blue-500 bg-blue-50 text-blue-900';
-          else if (game.status === 'Live') awayStyle = 'border-amber-400 bg-amber-50 text-amber-900';
-          else if (game.status === 'Final' && game.winner === game.away) awayStyle = 'border-emerald-500 bg-emerald-50 text-emerald-900';
-          else if (game.status === 'Final') awayStyle = 'border-red-500 bg-red-50 text-red-900';
+          else if (game.status === 'Live' || game.status === 'STATUS_IN_PROGRESS') awayStyle = 'border-amber-400 bg-amber-50 text-amber-900';
+          else if ((game.status === 'Final' || game.status === 'STATUS_FINAL') && game.winner === game.away) awayStyle = 'border-emerald-500 bg-emerald-50 text-emerald-900';
+          else if (game.status === 'Final' || game.status === 'STATUS_FINAL') awayStyle = 'border-red-500 bg-red-50 text-red-900';
         }
         
         if (pickedTeam === game.home) {
           if (!isLocked) homeStyle = 'border-blue-500 bg-blue-50 text-blue-900';
-          else if (game.status === 'Live') homeStyle = 'border-amber-400 bg-amber-50 text-amber-900';
-          else if (game.status === 'Final' && game.winner === game.home) homeStyle = 'border-emerald-500 bg-emerald-50 text-emerald-900';
-          else if (game.status === 'Final') homeStyle = 'border-red-500 bg-red-50 text-red-900';
+          else if (game.status === 'Live' || game.status === 'STATUS_IN_PROGRESS') homeStyle = 'border-amber-400 bg-amber-50 text-amber-900';
+          else if ((game.status === 'Final' || game.status === 'STATUS_FINAL') && game.winner === game.home) homeStyle = 'border-emerald-500 bg-emerald-50 text-emerald-900';
+          else if (game.status === 'Final' || game.status === 'STATUS_FINAL') homeStyle = 'border-red-500 bg-red-50 text-red-900';
         }
 
         let tickerDisplay = `<span class="text-slate-400 font-medium tracking-widest uppercase">Scheduled</span>`;
-        if (game.status === 'Live' || game.status === 'Final') {
+        if (game.status === 'Live' || game.status === 'STATUS_IN_PROGRESS' || game.status === 'Final' || game.status === 'STATUS_FINAL') {
           tickerDisplay = `
             <span class="font-bold text-slate-300 w-12 text-left">${game.away} <span class="${game.winner===game.away?'text-white':''}">${game.awayScore}</span></span>
-            <span class="font-bold text-amber-400 text-[9px] uppercase tracking-wider">${game.clock || game.status}</span>
+            <span class="font-bold text-amber-400 text-[9px] uppercase tracking-wider">${game.clock || 'LIVE'}</span>
             <span class="font-bold text-slate-300 w-12 text-right"><span class="${game.winner===game.home?'text-white':''}">${game.homeScore}</span> ${game.home}</span>
           `;
         }
 
-        // Feature Game Flame Logic
-        let dragHandleClasses = `drag-handle w-16 flex flex-col items-center justify-center border-x ${isLocked ? 'opacity-50 cursor-not-allowed' : 'transition-colors cursor-grab active:cursor-grabbing'}`;
-        let featuredVisual = `<span class="text-slate-400 font-bold text-sm leading-none">@</span>`;
+        let dragHandleClasses = `drag-handle w-20 flex flex-col items-center justify-center border-x ${isLocked ? 'opacity-50 cursor-not-allowed' : 'transition-colors cursor-grab active:cursor-grabbing'}`;
+        let featuredVisual = `<span class="text-slate-400 font-bold text-sm leading-none my-1">@</span>`;
         let dateColorClass = "text-slate-400";
 
         if (game.featured) {
           dragHandleClasses += ` fire-bg ${isLocked ? '' : 'hover:brightness-110'}`;
-          featuredVisual = `<span class="fire-text font-black text-xl leading-none">@</span>`;
+          featuredVisual = `<span class="fire-text font-black text-xl leading-none my-1">@</span>`;
           dateColorClass = "text-orange-100";
         } else {
           dragHandleClasses += ` bg-slate-50 border-slate-100 ${isLocked ? '' : 'hover:bg-slate-100'}`;
@@ -643,7 +648,7 @@
                 
                 <div class="${dragHandleClasses}">
                   ${featuredVisual}
-                  <span class="text-[8px] ${dateColorClass} mt-1 font-medium whitespace-nowrap px-1 uppercase tracking-wider">${game.dateString}</span>
+                  <span class="text-[8px] ${dateColorClass} mt-0.5 font-medium whitespace-nowrap px-1 uppercase tracking-wider">${game.dateString}</span>
                 </div>
 
                 <button onclick="selectTeam(this, '${game.id}', '${game.home}', ${isLocked})" class="team-btn home-btn flex-1 flex items-center justify-end px-3 border-2 ${homeStyle} transition-colors ${isLocked ? 'cursor-default' : 'active:bg-slate-50'}">
