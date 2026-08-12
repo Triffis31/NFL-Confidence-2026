@@ -56,6 +56,13 @@
     let userPicks = {}; 
     let hasUnsavedChanges = false;
     let savedPicksSnapshot = null; 
+    
+    let currentProps = [];
+    let propPicks = {};
+    let propTeams = [];
+    let propGames = [];
+    let hasUnsavedPropChanges = false;
+    
     let pendingNavigationTarget = null;
     let sortableInstance = null;
     let adminUsersData = [];
@@ -135,8 +142,14 @@
       const currentView = document.querySelector('main > div.view-container:not(.hidden)')?.id;
       
       if (currentView === 'picks-view' && targetViewId !== 'picks-view' && hasUnsavedChanges) {
-        pendingNavigationTarget = { viewId: targetViewId, pushHistory };
-        showUnsavedModal();
+        pendingNavigationTarget = { viewId: targetViewId, pushHistory, type: 'picks' };
+        showUnsavedModal('picks');
+        return;
+      }
+
+      if (currentView === 'props-view' && targetViewId !== 'props-view' && hasUnsavedPropChanges) {
+        pendingNavigationTarget = { viewId: targetViewId, pushHistory, type: 'props' };
+        showUnsavedModal('props');
         return;
       }
       
@@ -175,6 +188,11 @@
         loadAndRenderPicks();
       }
 
+      if (viewId === 'props-view') {
+        populateWeekDropdown('prop-week-selector', state.viewedWeek);
+        loadAndRenderProps();
+      }
+
       if (viewId === 'account-view') {
         renderAccountView();
       }
@@ -211,9 +229,9 @@
         state.role = res.role;
         state.paid = res.paid;
         state.currentWeek = res.currentWeek || 1;
-        state.viewedWeek = state.currentWeek;
+        state.viewedWeek = res.currentWeek || 1;
         state.missingPicks = res.missingPicks || false;
-        adminViewedWeek = state.currentWeek;
+        adminViewedWeek = res.currentWeek || 1;
 
         if (res.needsName) {
           await promptForDisplayName();
@@ -515,7 +533,7 @@
       }
     }
 
-    // --- PICKS & CONFIDENCE LOGIC --- //
+    // --- SHARED DROPDOWN LOGIC --- //
 
     function populateWeekDropdown(elementId, targetValue) {
       const selector = document.getElementById(elementId);
@@ -532,12 +550,14 @@
       selector.value = targetValue;
     }
 
+    // --- PICKS & CONFIDENCE LOGIC --- //
+
     function handleWeekChange(newWeek) {
       const targetWeek = Number(newWeek);
       
       if (hasUnsavedChanges) {
-        pendingNavigationTarget = { viewId: 'picks-view', pushHistory: false, targetWeek: targetWeek };
-        showUnsavedModal();
+        pendingNavigationTarget = { viewId: 'picks-view', pushHistory: false, targetWeek: targetWeek, type: 'picks' };
+        showUnsavedModal('picks');
       } else {
         state.viewedWeek = targetWeek;
         loadAndRenderPicks();
@@ -559,7 +579,6 @@
             if (matchingGame) userPicks[matchingGame.id] = p.choice;
           });
 
-          // Re-order games according to confidence rank from DB
           currentWeekGames.sort((a, b) => {
             const pickA = res.picks.find(p => p.game === a.id);
             const pickB = res.picks.find(p => p.game === b.id);
@@ -572,7 +591,7 @@
         hasUnsavedChanges = false;
         takePicksSnapshot();
         renderPicksList();
-        updateSaveBarUI();
+        updateSaveBarUI('picks');
       }
     }
 
@@ -613,7 +632,6 @@
           else homeStyle = 'border-slate-300 bg-slate-50 text-slate-800'; // Locked but not live yet
         }
 
-        // Use the dynamically assembled clock string from Code.gs
         let tickerDisplay = `<span class="text-slate-400 font-medium tracking-widest uppercase text-center w-full">Scheduled</span>`;
         if (game.status === 'STATUS_IN_PROGRESS' || game.status === 'STATUS_FINAL' || game.status === 'Live' || game.status === 'Final') {
           tickerDisplay = `
@@ -684,7 +702,7 @@
         },
         onEnd: function () {
           updateConfidenceNumbers();
-          markUnsaved();
+          markUnsaved('picks');
         }
       });
     }
@@ -706,7 +724,7 @@
         buttonEl.className = buttonEl.className.replace('border-transparent bg-white', 'border-blue-500 bg-blue-50 text-blue-900');
       }
       
-      markUnsaved();
+      markUnsaved('picks');
     }
 
     function updateConfidenceNumbers() {
@@ -717,9 +735,14 @@
       });
     }
 
-    function markUnsaved() {
-      hasUnsavedChanges = true;
-      updateSaveBarUI();
+    function markUnsaved(type) {
+      if(type === 'picks') {
+        hasUnsavedChanges = true;
+        updateSaveBarUI('picks');
+      } else if (type === 'props') {
+        hasUnsavedPropChanges = true;
+        updateSaveBarUI('props');
+      }
     }
 
     function takePicksSnapshot() {
@@ -743,18 +766,28 @@
       updateConfidenceNumbers();
       renderPicksList();
       hasUnsavedChanges = false;
-      updateSaveBarUI();
+      updateSaveBarUI('picks');
     }
 
-    function updateSaveBarUI() {
-      const statusBadge = document.getElementById('save-status-badge');
-      
-      if (hasUnsavedChanges) {
-        statusBadge.innerText = "Unsaved Changes";
-        statusBadge.className = "text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800";
-      } else {
-        statusBadge.innerText = "All Saved";
-        statusBadge.className = "text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800";
+    function updateSaveBarUI(type) {
+      if(type === 'picks') {
+        const statusBadge = document.getElementById('save-status-badge');
+        if (hasUnsavedChanges) {
+          statusBadge.innerText = "Unsaved Changes";
+          statusBadge.className = "text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800";
+        } else {
+          statusBadge.innerText = "All Saved";
+          statusBadge.className = "text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800";
+        }
+      } else if (type === 'props') {
+        const statusBadge = document.getElementById('prop-save-status-badge');
+        if (hasUnsavedPropChanges) {
+          statusBadge.innerText = "Unsaved Changes";
+          statusBadge.className = "text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800";
+        } else {
+          statusBadge.innerText = "All Saved";
+          statusBadge.className = "text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800";
+        }
       }
     }
 
@@ -798,7 +831,7 @@
         }
 
         takePicksSnapshot();
-        updateSaveBarUI();
+        updateSaveBarUI('picks');
         return true;
       } else {
         alert(res.message || "Failed to save picks. Please try again.");
@@ -806,10 +839,151 @@
       }
     }
 
+    // --- PROP PICKS LOGIC --- //
+
+    function handlePropWeekChange(newWeek) {
+      const targetWeek = Number(newWeek);
+      if (hasUnsavedPropChanges) {
+        pendingNavigationTarget = { viewId: 'props-view', pushHistory: false, targetWeek: targetWeek, type: 'props' };
+        showUnsavedModal('props');
+      } else {
+        state.viewedWeek = targetWeek;
+        loadAndRenderProps();
+      }
+    }
+
+    async function loadAndRenderProps() {
+      document.getElementById('props-list').innerHTML = '<div class="py-8 text-center text-slate-400">Loading props...</div>';
+      
+      const res = await apiCall({ action: 'get_props_data', email: state.email, week: state.viewedWeek });
+      
+      propPicks = {};
+      if (res && res.success) {
+        currentProps = res.props || [];
+        propTeams = res.teams || [];
+        propGames = res.games || [];
+        
+        if (res.picks) {
+          propPicks = res.picks;
+        }
+
+        hasUnsavedPropChanges = false;
+        renderPropsList();
+        updateSaveBarUI('props');
+      } else {
+        document.getElementById('props-list').innerHTML = '<div class="py-8 text-center text-red-400">Failed to load prop data.</div>';
+      }
+    }
+
+    function renderPropsList() {
+      const container = document.getElementById('props-list');
+      if (currentProps.length === 0) {
+        container.innerHTML = `<div class="p-8 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">No prop plays found for Week ${state.viewedWeek}</div>`;
+        return;
+      }
+
+      let html = '';
+      currentProps.forEach(prop => {
+        const currentChoice = propPicks[prop.title] || '';
+        let inputHtml = '';
+
+        if (prop.type === 'Radio Button (Yes/No)') {
+          const isYes = currentChoice === 'Yes';
+          const isNo = currentChoice === 'No';
+          inputHtml = `
+            <div class="flex gap-3">
+              <button onclick="selectProp('${prop.title}', 'Yes')" class="flex-1 py-3 font-bold rounded-xl border-2 transition-colors ${isYes ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}">Yes</button>
+              <button onclick="selectProp('${prop.title}', 'No')" class="flex-1 py-3 font-bold rounded-xl border-2 transition-colors ${isNo ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}">No</button>
+            </div>
+          `;
+        } else if (prop.type === 'Dropdown (Team)') {
+          let options = `<option value="">Select a team...</option>`;
+          propTeams.forEach(team => {
+            options += `<option value="${team}" ${currentChoice === team ? 'selected' : ''}>${team}</option>`;
+          });
+          inputHtml = `
+            <div class="relative">
+              <select onchange="selectProp('${prop.title}', this.value)" class="w-full bg-white border-2 border-slate-200 text-slate-800 font-semibold rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 appearance-none outline-none">
+                ${options}
+              </select>
+              <div class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs">▼</div>
+            </div>
+          `;
+        } else if (prop.type === 'Dropdown (Game)') {
+          let options = `<option value="">Select a game...</option>`;
+          propGames.forEach(game => {
+            options += `<option value="${game}" ${currentChoice === game ? 'selected' : ''}>${game}</option>`;
+          });
+          inputHtml = `
+            <div class="relative">
+              <select onchange="selectProp('${prop.title}', this.value)" class="w-full bg-white border-2 border-slate-200 text-slate-800 font-semibold rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 appearance-none outline-none">
+                ${options}
+              </select>
+              <div class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs">▼</div>
+            </div>
+          `;
+        }
+
+        html += `
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-4">
+            <h3 class="font-bold text-slate-800 text-lg mb-1 leading-tight">${prop.title}</h3>
+            <p class="text-sm text-slate-500 mb-4 leading-snug">${prop.description}</p>
+            ${inputHtml}
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    function selectProp(propTitle, choice) {
+      propPicks[propTitle] = choice;
+      markUnsaved('props');
+      
+      // Re-render to update UI states immediately
+      renderPropsList();
+    }
+
+    async function handleSaveProps() {
+      const saveBtn = document.getElementById('save-props-btn');
+      saveBtn.innerText = 'SAVING...';
+      saveBtn.disabled = true;
+
+      const picksPayload = [];
+      Object.keys(propPicks).forEach(title => {
+        picksPayload.push({
+          name: title,
+          choice: propPicks[title]
+        });
+      });
+
+      const res = await apiCall({
+        action: 'submit_prop_picks',
+        email: state.email,
+        week: state.viewedWeek,
+        picks: picksPayload
+      });
+
+      saveBtn.innerText = 'SAVE PROPS';
+      saveBtn.disabled = false;
+
+      if (res && res.success) {
+        hasUnsavedPropChanges = false;
+        updateSaveBarUI('props');
+        return true;
+      } else {
+        alert(res.message || "Failed to save prop picks.");
+        return false;
+      }
+    }
+
+
     // --- MODAL DIALOG LOGIC --- //
 
-    function showUnsavedModal() {
-      document.getElementById('unsaved-modal').classList.remove('hidden');
+    function showUnsavedModal(type) {
+      const modal = document.getElementById('unsaved-modal');
+      modal.setAttribute('data-active-type', type);
+      modal.classList.remove('hidden');
     }
 
     function hideUnsavedModal() {
@@ -817,29 +991,44 @@
     }
 
     async function resolveUnsavedChoice(choice) {
+      const modal = document.getElementById('unsaved-modal');
+      const type = modal.getAttribute('data-active-type');
       hideUnsavedModal();
       
       if (choice === 'continue') {
-        document.getElementById('week-selector').value = state.viewedWeek;
+        if(type === 'picks') document.getElementById('week-selector').value = state.viewedWeek;
+        if(type === 'props') document.getElementById('prop-week-selector').value = state.viewedWeek;
         pendingNavigationTarget = null;
         return;
       }
       
       if (choice === 'save') {
-        const savedSuccessfully = await handleSavePicks();
+        let savedSuccessfully = false;
+        if (type === 'picks') savedSuccessfully = await handleSavePicks();
+        if (type === 'props') savedSuccessfully = await handleSaveProps();
+        
         if (!savedSuccessfully) {
           pendingNavigationTarget = null;
           return;
         }
-      } else {
-        restorePicksFromSnapshot();
+      } else { // discard
+        if (type === 'picks') restorePicksFromSnapshot();
+        if (type === 'props') {
+          hasUnsavedPropChanges = false;
+          loadAndRenderProps(); // Reload original state from backend
+        }
       }
 
       if (pendingNavigationTarget) {
         if (pendingNavigationTarget.targetWeek) {
           state.viewedWeek = pendingNavigationTarget.targetWeek;
-          document.getElementById('week-selector').value = state.viewedWeek;
-          loadAndRenderPicks();
+          if(pendingNavigationTarget.type === 'picks') {
+            document.getElementById('week-selector').value = state.viewedWeek;
+            loadAndRenderPicks();
+          } else {
+            document.getElementById('prop-week-selector').value = state.viewedWeek;
+            loadAndRenderProps();
+          }
         } else {
           navigate(pendingNavigationTarget.viewId, pendingNavigationTarget.pushHistory);
         }
@@ -1050,10 +1239,23 @@
       </div>
     </div>
 
+    <!-- Prop Plays View -->
     <div id="props-view" class="view-container hidden mt-6">
-      <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">Prop Plays</h2>
-      <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 text-center text-slate-500">
-        Prop plays interface construction pending.
+      <div class="flex items-center justify-between px-1 mb-4">
+        <div class="relative">
+          <select id="prop-week-selector" onchange="handlePropWeekChange(this.value)" class="text-2xl font-bold text-slate-800 bg-transparent border-none outline-none cursor-pointer appearance-none pr-6 z-10 relative focus:ring-0">
+          </select>
+          <div class="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">▼</div>
+        </div>
+        <span id="prop-save-status-badge" class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">All Saved</span>
+      </div>
+
+      <div id="props-list" class="mb-4"></div>
+
+      <div class="fixed left-0 right-0 max-w-md mx-auto px-4 z-30 bottom-sticky-bar">
+        <button id="save-props-btn" onclick="handleSaveProps()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black text-lg py-4 rounded-2xl transition active:scale-95 shadow-lg drop-shadow-md">
+          SAVE PROPS
+        </button>
       </div>
     </div>
 
