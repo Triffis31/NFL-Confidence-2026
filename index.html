@@ -234,11 +234,11 @@
       }
 
       if (viewId === 'prop-leaderboard-view') {
-        loadSubLeaderboard('dynamicPropPts');
+        loadSubLeaderboard('dynamicPropPts', 'prop-leaderboard-container');
       }
 
       if (viewId === 'featured-leaderboard-view') {
-        loadSubLeaderboard('featPts');
+        loadSubLeaderboard('featPts', 'featured-leaderboard-container');
       }
 
       if (viewId === 'account-view') {
@@ -265,14 +265,10 @@
       }
     }
 
-    async function loadSubLeaderboard(key) {
-      const titleEl = document.getElementById('sub-leaderboard-title');
-      if (key === 'dynamicPropPts') titleEl.innerText = "Prop Leaderboard";
-      if (key === 'featPts') titleEl.innerText = "Featured Leaderboard";
-      
-      document.getElementById('sub-leaderboard-container').innerHTML = '<div class="py-8 text-center text-slate-400">Loading data...</div>';
+    async function loadSubLeaderboard(key, containerId) {
+      document.getElementById(containerId).innerHTML = '<div class="py-8 text-center text-slate-400">Loading data...</div>';
       await fetchLeaderboardData();
-      renderSubLeaderboard(key);
+      renderSubLeaderboard(key, containerId);
     }
 
     async function loadSeasonLeaderboard(type) {
@@ -293,8 +289,8 @@
       return sorted;
     }
 
-    function renderSubLeaderboard(key) {
-      const container = document.getElementById('sub-leaderboard-container');
+    function renderSubLeaderboard(key, containerId) {
+      const container = document.getElementById(containerId);
       if (lbDataRaw.users.length === 0) {
         container.innerHTML = '<div class="p-6 text-center text-slate-400">No data available.</div>';
         return;
@@ -1386,13 +1382,13 @@
 
     <!-- Sub Leaderboard Views (Prop / Featured) -->
     <div id="prop-leaderboard-view" class="view-container hidden mt-6">
-      <h2 id="sub-leaderboard-title" class="text-2xl font-bold px-1 mb-4 text-slate-800">Leaderboard</h2>
-      <div id="sub-leaderboard-container"></div>
+      <h2 id="sub-leaderboard-title" class="text-2xl font-bold px-1 mb-4 text-slate-800">Prop Leaderboard</h2>
+      <div id="prop-leaderboard-container"></div>
     </div>
     
     <div id="featured-leaderboard-view" class="view-container hidden mt-6">
       <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">Featured Leaderboard</h2>
-      <div id="sub-leaderboard-container"></div>
+      <div id="featured-leaderboard-container"></div>
     </div>
 
     <!-- Account View -->
