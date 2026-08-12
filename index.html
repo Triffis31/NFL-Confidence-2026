@@ -623,12 +623,12 @@
         }
 
         let dragHandleClasses = `drag-handle w-20 flex flex-col items-center justify-center border-x ${isLocked ? 'opacity-50 cursor-not-allowed' : 'transition-colors cursor-grab active:cursor-grabbing'}`;
-        let featuredVisual = `<span class="text-slate-400 font-bold text-sm leading-none mt-1 mb-0.5">@</span>`;
+        let featuredVisual = `<span class="text-slate-400 font-bold text-sm leading-none my-1">@</span>`;
         let dateColorClass = "text-slate-400";
 
         if (game.featured) {
           dragHandleClasses += ` fire-bg ${isLocked ? '' : 'hover:brightness-110'}`;
-          featuredVisual = `<span class="fire-text font-black text-xl leading-none mt-1 mb-0.5">@</span>`;
+          featuredVisual = `<span class="fire-text font-black text-xl leading-none my-1">@</span>`;
           dateColorClass = "text-orange-100";
         } else {
           dragHandleClasses += ` bg-slate-50 border-slate-100 ${isLocked ? '' : 'hover:bg-slate-100'}`;
@@ -678,6 +678,9 @@
         ghostClass: 'sortable-ghost',
         dragClass: 'sortable-drag',
         filter: '.locked-game', 
+        onMove: function (evt) {
+          return !evt.related.classList.contains('locked-game');
+        },
         onEnd: function () {
           updateConfidenceNumbers();
           markUnsaved();
