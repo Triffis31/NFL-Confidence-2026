@@ -52,6 +52,9 @@
     .table-sticky-header { position: sticky; top: 0; background-color: #f1f5f9; z-index: 20; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
     .table-sticky-intersect-1 { z-index: 30 !important; }
     .table-sticky-intersect-2 { z-index: 30 !important; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
   </style>
 
   <script>
@@ -227,16 +230,15 @@
       }
 
       if (viewId === 'leaderboard-menu-view') {
-        // Fetch data once for all leaderboards when entering the menu
         fetchLeaderboardData();
       }
 
       if (viewId === 'season-leaderboard-view') {
-        renderSeasonLeaderboard('Total'); // Default to Total
+        renderSeasonLeaderboard('Total'); 
       }
 
       if (viewId === 'prop-leaderboard-view') {
-        renderSubLeaderboard('propPts');
+        renderSubLeaderboard('dynamicPropPts');
       }
 
       if (viewId === 'featured-leaderboard-view') {
@@ -260,7 +262,6 @@
     // --- LEADERBOARD LOGIC --- //
 
     async function fetchLeaderboardData() {
-      // Show loading states on buttons if desired, or just load in background
       const res = await apiCall({ action: 'get_leaderboards' });
       if (res && res.success) {
         lbDataRaw.users = res.users || [];
@@ -268,7 +269,6 @@
       }
     }
 
-    // Dynamic tie-breaker ranking logic
     function calculateRanks(array, key) {
       let sorted = [...array].sort((a, b) => b[key] - a[key]);
       let rank = 1;
@@ -285,8 +285,10 @@
       const container = document.getElementById('sub-leaderboard-container');
       const titleEl = document.getElementById('sub-leaderboard-title');
       
-      if (key === 'propPts') titleEl.innerText = "Prop Leaderboard";
-      if (key === 'featPts') titleEl.innerText = "Featured Leaderboard";
+      let title = "";
+      if (key === 'dynamicPropPts') title = "Prop Leaderboard";
+      if (key === 'featPts') title = "Featured Leaderboard";
+      titleEl.innerText = title;
 
       if (lbDataRaw.users.length === 0) {
         container.innerHTML = '<div class="p-6 text-center text-slate-400">Loading or no data available.</div>';
@@ -302,6 +304,7 @@
               <tr>
                 <th class="p-3 w-12 text-center">Rank</th>
                 <th class="p-3">Name</th>
+                <th class="p-3 text-center">Record</th>
                 <th class="p-3 text-right">Points</th>
               </tr>
             </thead>
@@ -310,10 +313,16 @@
 
       rankedData.forEach(u => {
         const isMe = u.name === state.name ? 'bg-blue-50/50 font-semibold' : '';
+        
+        let recordStr = '';
+        if (key === 'featPts') recordStr = `${u.featCorrect}/${u.featCompleted}`;
+        if (key === 'dynamicPropPts') recordStr = `${u.propCorrect}/${u.propCompleted}`;
+
         html += `
           <tr class="hover:bg-slate-50 transition-colors ${isMe}">
             <td class="p-3 text-center font-bold text-slate-400">${u.rank}</td>
             <td class="p-3 text-slate-800">${u.name}</td>
+            <td class="p-3 text-center text-slate-500 font-medium">${recordStr}</td>
             <td class="p-3 text-right font-bold text-slate-700">${u[key]}</td>
           </tr>
         `;
@@ -324,7 +333,6 @@
     }
 
     function renderSeasonLeaderboard(type) {
-      // Toggle button UI
       const btnTotal = document.getElementById('season-tab-total');
       const btnWeekly = document.getElementById('season-tab-weekly');
       
@@ -387,7 +395,6 @@
         return;
       }
 
-      // Sort users by Total Points to display rank order down the side
       const rankedData = calculateRanks(lbDataRaw.users, 'totalPts');
 
       let html = `
