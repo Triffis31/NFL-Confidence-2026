@@ -440,13 +440,13 @@
         const teamTextStyle = isSelected ? 'text-orange-900' : 'text-slate-800';
         
         let centerClasses = `w-20 flex flex-col items-center justify-center border-x`;
-        let featuredVisual = `<span class="text-slate-400 font-black text-sm leading-none my-1">@</span>`;
+        let featuredVisual = `<span class="text-slate-400 font-black text-sm leading-none mt-1 mb-0.5">@</span>`;
         let topTextClass = "text-slate-400";
         let bottomTextClass = "text-slate-400";
         
         if (isSelected) {
           centerClasses += ` fire-bg`;
-          featuredVisual = `<span class="fire-text font-black text-xl leading-none my-1">@</span>`;
+          featuredVisual = `<span class="fire-text font-black text-xl leading-none mt-1 mb-0.5">@</span>`;
           topTextClass = "text-orange-100";
           bottomTextClass = "text-orange-100";
         } else {
@@ -599,25 +599,26 @@
 
         if (pickedTeam === game.away) {
           if (!isLocked) awayStyle = 'border-blue-500 bg-blue-50 text-blue-900';
-          else if (game.status === 'STATUS_IN_PROGRESS') awayStyle = 'border-amber-400 bg-amber-50 text-amber-900';
-          else if (game.status === 'STATUS_FINAL' && game.winner === game.away) awayStyle = 'border-emerald-500 bg-emerald-50 text-emerald-900';
-          else if (game.status === 'STATUS_FINAL') awayStyle = 'border-red-500 bg-red-50 text-red-900';
+          else if (game.status === 'STATUS_IN_PROGRESS' || game.status === 'Live') awayStyle = 'border-amber-400 bg-amber-50 text-amber-900';
+          else if ((game.status === 'STATUS_FINAL' || game.status === 'Final') && game.winner === game.away) awayStyle = 'border-emerald-500 bg-emerald-50 text-emerald-900';
+          else if (game.status === 'STATUS_FINAL' || game.status === 'Final') awayStyle = 'border-red-500 bg-red-50 text-red-900';
           else awayStyle = 'border-slate-300 bg-slate-50 text-slate-800'; // Locked but not live yet
         }
         
         if (pickedTeam === game.home) {
           if (!isLocked) homeStyle = 'border-blue-500 bg-blue-50 text-blue-900';
-          else if (game.status === 'STATUS_IN_PROGRESS') homeStyle = 'border-amber-400 bg-amber-50 text-amber-900';
-          else if (game.status === 'STATUS_FINAL' && game.winner === game.home) homeStyle = 'border-emerald-500 bg-emerald-50 text-emerald-900';
-          else if (game.status === 'STATUS_FINAL') homeStyle = 'border-red-500 bg-red-50 text-red-900';
+          else if (game.status === 'STATUS_IN_PROGRESS' || game.status === 'Live') homeStyle = 'border-amber-400 bg-amber-50 text-amber-900';
+          else if ((game.status === 'STATUS_FINAL' || game.status === 'Final') && game.winner === game.home) homeStyle = 'border-emerald-500 bg-emerald-50 text-emerald-900';
+          else if (game.status === 'STATUS_FINAL' || game.status === 'Final') homeStyle = 'border-red-500 bg-red-50 text-red-900';
           else homeStyle = 'border-slate-300 bg-slate-50 text-slate-800'; // Locked but not live yet
         }
 
-        let tickerDisplay = `<span class="text-slate-400 font-medium tracking-widest uppercase">Scheduled</span>`;
-        if (game.status === 'STATUS_IN_PROGRESS' || game.status === 'STATUS_FINAL') {
+        // Use the dynamically assembled clock string from Code.gs
+        let tickerDisplay = `<span class="text-slate-400 font-medium tracking-widest uppercase text-center w-full">Scheduled</span>`;
+        if (game.status === 'STATUS_IN_PROGRESS' || game.status === 'STATUS_FINAL' || game.status === 'Live' || game.status === 'Final') {
           tickerDisplay = `
             <span class="font-bold text-slate-300 w-12 text-left">${game.away} <span class="${game.winner===game.away?'text-white':''}">${game.awayScore}</span></span>
-            <span class="font-bold text-amber-400 text-[9px] uppercase tracking-wider">${game.clock || game.status.replace('STATUS_', '')}</span>
+            <span class="font-bold text-amber-400 text-[9px] uppercase tracking-wider">${game.clock}</span>
             <span class="font-bold text-slate-300 w-12 text-right"><span class="${game.winner===game.home?'text-white':''}">${game.homeScore}</span> ${game.home}</span>
           `;
         }
