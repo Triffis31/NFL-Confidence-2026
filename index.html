@@ -67,8 +67,7 @@
       email: '', name: '', role: 'Member', paid: 'Unpaid', 
       currentWeek: 1, viewedWeek: 1, 
       missingConfidencePicks: false, 
-      missingPropPicks: false,
-      adminUnreadProps: false
+      missingPropPicks: false
     };
     
     // Pick Data
@@ -125,7 +124,6 @@
           state.viewedWeek = res.currentWeek || 1;
           state.missingConfidencePicks = res.missingConfidencePicks || false;
           state.missingPropPicks = res.missingPropPicks || false;
-          state.adminUnreadProps = res.adminUnreadProps || false;
           adminViewedWeek = res.currentWeek || 1;
           
           if (res.needsName) {
@@ -223,7 +221,6 @@
           else nameBadge.classList.add('hidden');
         }
         evaluateSocialUnreadBadges();
-        evaluateAdminBadges();
       }
 
       if (viewId === 'weekly-menu-view') {
@@ -239,10 +236,6 @@
           if (state.missingPropPicks) propBadge.classList.remove('hidden');
           else propBadge.classList.add('hidden');
         }
-      }
-
-      if (viewId === 'admin-menu-view') {
-        evaluateAdminBadges();
       }
       
       if (viewId === 'picks-view') {
@@ -306,24 +299,8 @@
       }
 
       if (viewId === 'admin-prop-review-view') {
-        state.adminUnreadProps = false;
-        evaluateAdminBadges();
         populateWeekDropdown('admin-prop-week-selector', adminViewedWeek);
         loadAdminPropReview();
-      }
-    }
-
-    // --- ADMIN BADGE LOGIC --- //
-    function evaluateAdminBadges() {
-      const footerAdminBadge = document.getElementById('footer-admin-badge');
-      const menuPropBadge = document.getElementById('admin-menu-prop-badge');
-      
-      if (state.adminUnreadProps) {
-        if (footerAdminBadge) footerAdminBadge.classList.remove('hidden');
-        if (menuPropBadge) menuPropBadge.classList.remove('hidden');
-      } else {
-        if (footerAdminBadge) footerAdminBadge.classList.add('hidden');
-        if (menuPropBadge) menuPropBadge.classList.add('hidden');
       }
     }
 
@@ -1563,10 +1540,7 @@
         </button>
         <button onclick="attemptNavigation('admin-prop-review-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
           <div class="flex items-center"><span class="text-2xl mr-3">🕵️</span><span class="font-semibold text-lg text-slate-700">Prop Review</span></div>
-          <div class="flex items-center">
-            <span id="admin-menu-prop-badge" class="hidden w-3 h-3 bg-red-500 rounded-full shadow-sm mr-3 animate-pulse"></span>
-            <span class="text-slate-400">→</span>
-          </div>
+          <span class="text-slate-400">→</span>
         </button>
         <button onclick="attemptNavigation('admin-post-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
           <div class="flex items-center"><span class="text-2xl mr-3">📝</span><span class="font-semibold text-lg text-slate-800">Write League Post</span></div>
@@ -1723,10 +1697,8 @@
       <span id="footer-chat-badge" class="hidden absolute top-0 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></span>
       League
     </button>
-    <button id="admin-nav-btn" onclick="attemptNavigation('admin-menu-view')" class="hidden flex flex-col items-center hover:text-slate-900 transition relative">
-      <span class="text-xl mb-1">⚙️</span>
-      <span id="footer-admin-badge" class="hidden absolute top-0 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></span>
-      Admin
+    <button id="admin-nav-btn" onclick="attemptNavigation('admin-menu-view')" class="hidden flex flex-col items-center hover:text-slate-900 transition">
+      <span class="text-xl mb-1">⚙️</span>Admin
     </button>
   </nav>
 
