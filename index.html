@@ -143,6 +143,55 @@
       document.getElementById('login-view').classList.remove('hidden');
     }
 
+    async function handleLogin(event) {
+      event.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const code = document.getElementById('code').value.trim();
+      const errEl = document.getElementById('login-error');
+      const btn = document.getElementById('login-btn');
+
+      errEl.classList.add('hidden');
+      btn.innerText = 'Authenticating...';
+      btn.disabled = true;
+
+      const res = await apiCall({ action: 'login', email: email, code: code });
+
+      if (res && res.success) {
+        localStorage.setItem('nfl_email', email);
+        localStorage.setItem('nfl_code', code);
+        
+        state.email = email;
+        state.name = res.name;
+        state.role = res.role;
+        state.paid = res.paid;
+        state.currentWeek = res.currentWeek || 1;
+        state.viewedWeek = res.currentWeek || 1;
+        state.missingConfidencePicks = res.missingConfidencePicks || false;
+        state.missingPropPicks = res.missingPropPicks || false;
+        adminViewedWeek = res.currentWeek || 1;
+
+        if (res.needsName) {
+          await promptForDisplayName();
+        }
+
+        document.getElementById('login-view').classList.add('hidden');
+        document.getElementById('bottom-nav').classList.remove('hidden');
+
+        if (state.role === 'Admin') {
+           document.getElementById('admin-nav-btn').classList.remove('hidden');
+        }
+
+        fetchSocialDataInBackground();
+        navigate('home-view', true);
+      } else {
+        errEl.innerText = res.message || "Invalid email or invite code.";
+        errEl.classList.remove('hidden');
+      }
+
+      btn.innerText = 'Log In';
+      btn.disabled = false;
+    }
+
     async function promptForDisplayName() {
       const newName = prompt("Welcome to the NFL Confidence League!\n\nPlease enter a Display Name for your account:");
       if (newName && newName.trim() !== "") {
