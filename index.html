@@ -1239,7 +1239,7 @@
       }
     }
 
-    function renderAdminPropReview() {
+function renderAdminPropReview() {
       const container = document.getElementById('admin-prop-list');
       if (adminPropData.props.length === 0) {
         container.innerHTML = `<div class="p-8 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">No props found for Week ${adminViewedWeek}</div>`;
@@ -1251,6 +1251,9 @@
         html += `
           <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
              <h3 class="font-bold text-slate-800 leading-tight mb-2">${prop.title}</h3>
+             
+             <!-- Added: Prop Description -->
+             <p class="text-sm text-slate-500 mb-3 leading-snug">${prop.description}</p>
              
              <div class="bg-slate-50 rounded-lg p-3 mb-4 border border-slate-100 text-sm">
                <div class="flex justify-between border-b border-slate-200 pb-2 mb-2">
