@@ -100,6 +100,9 @@
     let adminSelectedFeatured = [];
     let adminFeaturedStatus = 'Not Set';
     let adminViewedWeek = 1;
+    
+    // Admin Prop Review State
+    let adminPropData = { props: [], teams: [], games: [] };
 
     window.onpopstate = function(event) {
       const targetView = (event.state && event.state.view) ? event.state.view : 'home-view';
@@ -342,6 +345,11 @@
 
       if (viewId === 'admin-post-view') {
         loadAdminPostDraft();
+      }
+
+      if (viewId === 'admin-prop-review-view') {
+        populateWeekDropdown('admin-prop-week-selector', adminViewedWeek);
+        loadAdminPropReview();
       }
     }
 
@@ -1191,562 +1199,143 @@
       }
     }
 
-    // --- SHARED DROPDOWN LOGIC --- //
+    // --- ADMIN PROP REVIEW LOGIC --- //
 
-    function populateWeekDropdown(elementId, targetValue) {
-      const selector = document.getElementById(elementId);
-      if (!selector) return;
-      let html = '';
-      for(let w = 1; w <= 18; w++) {
-        if (w === state.currentWeek) {
-          html += `<option value="${w}">Week ${w} (Current)</option>`;
-        } else {
-          html += `<option value="${w}">Week ${w}</option>`;
-        }
-      }
-      selector.innerHTML = html;
-      selector.value = targetValue;
+    function handleAdminPropWeekChange(newWeek) {
+      adminViewedWeek = Number(newWeek);
+      loadAdminPropReview();
     }
 
-    // --- PICKS & CONFIDENCE LOGIC --- //
-
-    function handleWeekChange(newWeek) {
-      const targetWeek = Number(newWeek);
+    async function loadAdminPropReview() {
+      document.getElementById('admin-prop-list').innerHTML = '<div class="py-8 text-center text-slate-400">Loading props...</div>';
       
-      if (hasUnsavedChanges) {
-        pendingNavigationTarget = { viewId: 'picks-view', pushHistory: false, targetWeek: targetWeek, type: 'picks' };
-        showUnsavedModal('picks');
-      } else {
-        state.viewedWeek = targetWeek;
-        loadAndRenderPicks();
-      }
-    }
-
-    async function loadAndRenderPicks() {
-      document.getElementById('picks-list').innerHTML = '<div class="py-8 text-center text-slate-400">Loading games...</div>';
+      const res = await apiCall({ action: 'admin_get_props_review', email: state.email, week: adminViewedWeek });
       
-      const res = await apiCall({ action: 'get_week_data', email: state.email, week: state.viewedWeek });
-      
-      userPicks = {};
       if (res && res.success) {
-        currentWeekGames = res.games || [];
-        
-        if (res.picks && res.picks.length > 0) {
-          res.picks.forEach(p => {
-            const matchingGame = currentWeekGames.find(g => g.id === p.game);
-            if (matchingGame) userPicks[matchingGame.id] = p.choice;
-          });
-
-          currentWeekGames.sort((a, b) => {
-            const pickA = res.picks.find(p => p.game === a.id);
-            const pickB = res.picks.find(p => p.game === b.id);
-            const confA = pickA ? Number(pickA.confidence) : 0;
-            const confB = pickB ? Number(pickB.confidence) : 0;
-            return confB - confA;
-          });
-        }
-
-        hasUnsavedChanges = false;
-        takePicksSnapshot();
-        renderPicksList();
-        updateSaveBarUI('picks');
+        adminPropData.props = res.props || [];
+        adminPropData.teams = res.teams || [];
+        adminPropData.games = res.games || [];
+        renderAdminPropReview();
+      } else {
+        document.getElementById('admin-prop-list').innerHTML = '<div class="py-8 text-center text-red-400">Failed to load prop review data.</div>';
       }
     }
 
-    function renderPicksList() {
-      const container = document.getElementById('picks-list');
-      if (currentWeekGames.length === 0) {
-        container.innerHTML = `<div class="p-8 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">No games found for Week ${state.viewedWeek}</div>`;
+    function renderAdminPropReview() {
+      const container = document.getElementById('admin-prop-list');
+      if (adminPropData.props.length === 0) {
+        container.innerHTML = `<div class="p-8 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">No props found for Week ${adminViewedWeek}</div>`;
         return;
       }
 
       let html = '';
-      const totalGames = currentWeekGames.length;
-      
-      currentWeekGames.forEach((game, index) => {
-        const confidenceVal = totalGames - index; 
-        const pickedTeam = userPicks[game.id] || null;
-        
-        const isLocked = game.locked === true;
-        const rowClass = isLocked ? 'pick-row locked-game' : 'pick-row';
-        const lockIcon = isLocked ? `<span class="text-base mt-0.5">🔒</span>` : '';
+      adminPropData.props.forEach((prop, index) => {
+        let badgeClass = 'bg-slate-100 text-slate-500';
+        if (prop.status === 'Auto-Detected') badgeClass = 'bg-amber-100 text-amber-800';
+        else if (prop.status === 'Confirmed') badgeClass = 'bg-emerald-100 text-emerald-800';
 
-        let awayStyle = 'border-transparent bg-white';
-        let homeStyle = 'border-transparent bg-white';
-
-        if (pickedTeam === game.away) {
-          if (!isLocked) awayStyle = 'border-blue-500 bg-blue-50 text-blue-900';
-          else if (game.status === 'STATUS_IN_PROGRESS' || game.status === 'Live') awayStyle = 'border-amber-400 bg-amber-50 text-amber-900';
-          else if ((game.status === 'STATUS_FINAL' || game.status === 'Final') && game.winner === game.away) awayStyle = 'border-emerald-500 bg-emerald-50 text-emerald-900';
-          else if (game.status === 'STATUS_FINAL' || game.status === 'Final') awayStyle = 'border-red-500 bg-red-50 text-red-900';
-          else awayStyle = 'border-slate-300 bg-slate-50 text-slate-800'; // Locked but not live yet
-        }
-        
-        if (pickedTeam === game.home) {
-          if (!isLocked) homeStyle = 'border-blue-500 bg-blue-50 text-blue-900';
-          else if (game.status === 'STATUS_IN_PROGRESS' || game.status === 'Live') homeStyle = 'border-amber-400 bg-amber-50 text-amber-900';
-          else if ((game.status === 'STATUS_FINAL' || game.status === 'Final') && game.winner === game.home) homeStyle = 'border-emerald-500 bg-emerald-50 text-emerald-900';
-          else if (game.status === 'STATUS_FINAL' || game.status === 'Final') homeStyle = 'border-red-500 bg-red-50 text-red-900';
-          else homeStyle = 'border-slate-300 bg-slate-50 text-slate-800'; // Locked but not live yet
-        }
-
-        let tickerDisplay = `<span class="text-slate-400 font-medium tracking-widest uppercase text-center w-full">Scheduled</span>`;
-        if (game.status === 'STATUS_IN_PROGRESS' || game.status === 'STATUS_FINAL' || game.status === 'Live' || game.status === 'Final') {
-          tickerDisplay = `
-            <span class="font-bold text-slate-300 w-12 text-left">${game.away} <span class="${game.winner===game.away?'text-white':''}">${game.awayScore}</span></span>
-            <span class="font-bold text-amber-400 text-[9px] uppercase tracking-wider">${game.clock}</span>
-            <span class="font-bold text-slate-300 w-12 text-right"><span class="${game.winner===game.home?'text-white':''}">${game.homeScore}</span> ${game.home}</span>
-          `;
-        }
-
-        let dragHandleClasses = `drag-handle w-20 flex flex-col items-center justify-center border-x ${isLocked ? 'opacity-50 cursor-not-allowed' : 'transition-colors cursor-grab active:cursor-grabbing'}`;
-        let featuredVisual = `<span class="text-slate-400 font-bold text-sm leading-none my-1">@</span>`;
-        let dateColorClass = "text-slate-400";
-
-        if (game.featured) {
-          dragHandleClasses += ` fire-bg ${isLocked ? '' : 'hover:brightness-110'}`;
-          featuredVisual = `<span class="fire-text font-black text-xl leading-none my-1">@</span>`;
-          dateColorClass = "text-orange-100";
-        } else {
-          dragHandleClasses += ` bg-slate-50 border-slate-100 ${isLocked ? '' : 'hover:bg-slate-100'}`;
-        }
-
-        html += `
-          <div class="${rowClass} flex flex-col mb-4 drop-shadow-sm" data-game-id="${game.id}">
-            
-            <div class="flex items-stretch h-16 w-full">
-              <div class="confidence-legend w-10 flex flex-col items-center justify-center font-black text-slate-400 bg-slate-100 rounded-tl-xl border border-slate-200 border-r-0 text-lg">
-                <span class="leading-none conf-num">${confidenceVal}</span>
-                ${lockIcon}
-              </div>
-              
-              <div class="flex-1 flex items-stretch bg-white rounded-tr-xl border border-slate-200 overflow-hidden relative">
-                <button onclick="selectTeam(this, '${game.id}', '${game.away}', ${isLocked})" class="team-btn away-btn flex-1 flex items-center justify-start px-3 border-2 ${awayStyle} transition-colors ${isLocked ? 'cursor-default' : 'active:bg-slate-50'}">
-                  ${game.awayLogo ? `<img src="${game.awayLogo}" class="w-7 h-7 object-contain mr-2">` : ''}
-                  <span class="font-bold tracking-tight text-sm sm:text-base">${game.away}</span>
-                </button>
-                
-                <div class="${dragHandleClasses}">
-                  ${featuredVisual}
-                  <span class="text-[8px] ${dateColorClass} mt-0.5 font-medium whitespace-nowrap px-1 uppercase tracking-wider">${game.dateString}</span>
-                </div>
-
-                <button onclick="selectTeam(this, '${game.id}', '${game.home}', ${isLocked})" class="team-btn home-btn flex-1 flex items-center justify-end px-3 border-2 ${homeStyle} transition-colors ${isLocked ? 'cursor-default' : 'active:bg-slate-50'}">
-                  <span class="font-bold tracking-tight text-sm sm:text-base">${game.home}</span>
-                  ${game.homeLogo ? `<img src="${game.homeLogo}" class="w-7 h-7 object-contain ml-2">` : ''}
-                </button>
-              </div>
-            </div>
-
-            <div class="flex justify-between items-center bg-slate-800 text-[10px] text-slate-100 rounded-b-xl px-4 py-1.5 ml-10 border border-slate-800 shadow-inner">
-              ${tickerDisplay}
-            </div>
-          </div>
-        `;
-      });
-      
-      container.innerHTML = html;
-
-      if (sortableInstance) sortableInstance.destroy();
-      
-      sortableInstance = new Sortable(container, {
-        handle: '.drag-handle',
-        animation: 200,
-        ghostClass: 'sortable-ghost',
-        dragClass: 'sortable-drag',
-        filter: '.locked-game', 
-        onMove: function (evt) {
-          return !evt.related.classList.contains('locked-game');
-        },
-        onEnd: function () {
-          updateConfidenceNumbers();
-          markUnsaved('picks');
-        }
-      });
-    }
-
-    function selectTeam(buttonEl, gameId, selectedTeam, isLocked) {
-      if (isLocked) return; 
-
-      const row = buttonEl.closest('.pick-row');
-      const awayBtn = row.querySelector('.away-btn');
-      const homeBtn = row.querySelector('.home-btn');
-
-      if (userPicks[gameId] === selectedTeam) {
-        userPicks[gameId] = '';
-        buttonEl.className = buttonEl.className.replace('border-blue-500 bg-blue-50 text-blue-900', 'border-transparent bg-white');
-      } else {
-        userPicks[gameId] = selectedTeam;
-        awayBtn.className = awayBtn.className.replace('border-blue-500 bg-blue-50 text-blue-900', 'border-transparent bg-white');
-        homeBtn.className = homeBtn.className.replace('border-blue-500 bg-blue-50 text-blue-900', 'border-transparent bg-white');
-        buttonEl.className = buttonEl.className.replace('border-transparent bg-white', 'border-blue-500 bg-blue-50 text-blue-900');
-      }
-      
-      markUnsaved('picks');
-    }
-
-    function updateConfidenceNumbers() {
-      const rows = document.querySelectorAll('#picks-list .pick-row');
-      const totalGames = rows.length;
-      rows.forEach((row, index) => {
-        const numEl = row.querySelector('.conf-num');
-        if (numEl) numEl.innerText = totalGames - index;
-      });
-    }
-
-    function markUnsaved(type) {
-      if(type === 'picks') {
-        hasUnsavedChanges = true;
-        updateSaveBarUI('picks');
-      } else if (type === 'props') {
-        hasUnsavedPropChanges = true;
-        updateSaveBarUI('props');
-      } else if (type === 'post') {
-        hasUnsavedPostChanges = true;
-      }
-    }
-
-    function takePicksSnapshot() {
-      savedPicksSnapshot = JSON.stringify({
-        picks: { ...userPicks },
-        order: Array.from(document.querySelectorAll('#picks-list .pick-row')).map(r => r.dataset.gameId)
-      });
-    }
-
-    function restorePicksFromSnapshot() {
-      if (!savedPicksSnapshot) return;
-      const snapshot = JSON.parse(savedPicksSnapshot);
-      userPicks = { ...snapshot.picks };
-      
-      const container = document.getElementById('picks-list');
-      snapshot.order.forEach(id => {
-        const row = container.querySelector(`[data-game-id="${id}"]`);
-        if (row) container.appendChild(row);
-      });
-      
-      updateConfidenceNumbers();
-      renderPicksList();
-      hasUnsavedChanges = false;
-      updateSaveBarUI('picks');
-    }
-
-    function updateSaveBarUI(type) {
-      if(type === 'picks') {
-        const statusBadge = document.getElementById('save-status-badge');
-        if (hasUnsavedChanges) {
-          statusBadge.innerText = "Unsaved Changes";
-          statusBadge.className = "text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800";
-        } else {
-          statusBadge.innerText = "All Saved";
-          statusBadge.className = "text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800";
-        }
-      } else if (type === 'props') {
-        const statusBadge = document.getElementById('prop-save-status-badge');
-        if (hasUnsavedPropChanges) {
-          statusBadge.innerText = "Unsaved Changes";
-          statusBadge.className = "text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800";
-        } else {
-          statusBadge.innerText = "All Saved";
-          statusBadge.className = "text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800";
-        }
-      }
-    }
-
-    async function handleSavePicks() {
-      const saveBtn = document.getElementById('save-picks-btn');
-      saveBtn.innerText = 'SAVING...';
-      saveBtn.disabled = true;
-
-      const rows = document.querySelectorAll('#picks-list .pick-row');
-      const picksPayload = [];
-      const totalGames = rows.length;
-
-      rows.forEach((row, index) => {
-        const gameId = row.dataset.gameId;
-        const confidence = totalGames - index; 
-        const choice = userPicks[gameId] || '';
-
-        picksPayload.push({
-          game: gameId,
-          choice: choice,
-          confidence: confidence
-        });
-      });
-
-      const res = await apiCall({
-        action: 'submit_picks',
-        email: state.email,
-        week: state.viewedWeek,
-        picks: picksPayload
-      });
-
-      saveBtn.innerText = 'SAVE PICKS';
-      saveBtn.disabled = false;
-
-      if (res && res.success) {
-        hasUnsavedChanges = false;
-        
-        if (state.viewedWeek === state.currentWeek) {
-          const hasBlank = picksPayload.some(p => p.choice === '');
-          state.missingConfidencePicks = hasBlank;
-          
-          const picksBadge = document.getElementById('missing-confidence-badge');
-          if (picksBadge) {
-             if (state.missingConfidencePicks) picksBadge.classList.remove('hidden');
-             else picksBadge.classList.add('hidden');
-          }
-        }
-
-        takePicksSnapshot();
-        updateSaveBarUI('picks');
-        return true;
-      } else {
-        alert(res.message || "Failed to save picks. Please try again.");
-        return false;
-      }
-    }
-
-    // --- PROP PICKS LOGIC --- //
-
-    function handlePropWeekChange(newWeek) {
-      const targetWeek = Number(newWeek);
-      if (hasUnsavedPropChanges) {
-        pendingNavigationTarget = { viewId: 'props-view', pushHistory: false, targetWeek: targetWeek, type: 'props' };
-        showUnsavedModal('props');
-      } else {
-        state.viewedWeek = targetWeek;
-        loadAndRenderProps();
-      }
-    }
-
-    async function loadAndRenderProps() {
-      document.getElementById('props-list').innerHTML = '<div class="py-8 text-center text-slate-400">Loading props...</div>';
-      
-      const res = await apiCall({ action: 'get_props_data', email: state.email, week: state.viewedWeek });
-      
-      propPicks = {};
-      if (res && res.success) {
-        currentProps = res.props || [];
-        propTeams = res.teams || [];
-        propGames = res.games || [];
-        
-        if (res.picks) {
-          propPicks = res.picks;
-        }
-
-        hasUnsavedPropChanges = false;
-        renderPropsList();
-        updateSaveBarUI('props');
-      } else {
-        document.getElementById('props-list').innerHTML = '<div class="py-8 text-center text-red-400">Failed to load prop data.</div>';
-      }
-    }
-
-    function renderPropsList() {
-      const container = document.getElementById('props-list');
-      if (currentProps.length === 0) {
-        container.innerHTML = `<div class="p-8 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">No prop plays found for Week ${state.viewedWeek}</div>`;
-        return;
-      }
-
-      let html = '';
-      currentProps.forEach(prop => {
-        const currentChoice = propPicks[prop.title] || '';
         let inputHtml = '';
-        
-        const isLocked = prop.locked === true;
-        const isConfirmed = prop.status === 'Confirmed';
-        const displayOutcome = isConfirmed ? prop.outcome : 'TBD';
-
-        let resultBadge = '';
-        if (isConfirmed && currentChoice) {
-          if (String(currentChoice).trim().toLowerCase() === String(prop.outcome).trim().toLowerCase()) {
-            resultBadge = `<span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded ml-2 uppercase">Correct</span>`;
-          } else {
-            resultBadge = `<span class="bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded ml-2 uppercase">Incorrect</span>`;
-          }
-        }
-
         if (prop.type === 'Radio Button (Yes/No)') {
-          const isYes = currentChoice === 'Yes';
-          const isNo = currentChoice === 'No';
           inputHtml = `
             <div class="flex gap-3">
-              <button onclick="${isLocked ? '' : `selectProp('${prop.title}', 'Yes')`}" class="flex-1 py-3 font-bold rounded-xl border-2 transition-colors ${isYes ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-200 text-slate-500'} ${!isLocked && !isYes ? 'hover:bg-slate-50' : ''} ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}">Yes</button>
-              <button onclick="${isLocked ? '' : `selectProp('${prop.title}', 'No')`}" class="flex-1 py-3 font-bold rounded-xl border-2 transition-colors ${isNo ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-200 text-slate-500'} ${!isLocked && !isNo ? 'hover:bg-slate-50' : ''} ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}">No</button>
+              <button onclick="document.getElementById('override-val-${index}').value='Yes'; this.classList.add('bg-blue-50','border-blue-500','text-blue-700'); this.nextElementSibling.classList.remove('bg-blue-50','border-blue-500','text-blue-700');" class="flex-1 py-2 font-bold rounded-lg border-2 bg-white border-slate-200 text-slate-500">Yes</button>
+              <button onclick="document.getElementById('override-val-${index}').value='No'; this.classList.add('bg-blue-50','border-blue-500','text-blue-700'); this.previousElementSibling.classList.remove('bg-blue-50','border-blue-500','text-blue-700');" class="flex-1 py-2 font-bold rounded-lg border-2 bg-white border-slate-200 text-slate-500">No</button>
             </div>
+            <input type="hidden" id="override-val-${index}" value="">
           `;
         } else if (prop.type === 'Dropdown (Team)') {
           let options = `<option value="">Select a team...</option>`;
-          propTeams.forEach(team => {
-            options += `<option value="${team}" ${currentChoice === team ? 'selected' : ''}>${team}</option>`;
-          });
-          inputHtml = `
-            <div class="relative">
-              <select onchange="selectProp('${prop.title}', this.value)" ${isLocked ? 'disabled' : ''} class="w-full border-2 border-slate-200 text-slate-800 font-semibold rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 appearance-none outline-none ${isLocked ? 'opacity-60 cursor-not-allowed bg-slate-50' : 'bg-white'}">
-                ${options}
-              </select>
-              <div class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs">▼</div>
-            </div>
-          `;
+          adminPropData.teams.forEach(team => { options += `<option value="${team}">${team}</option>`; });
+          inputHtml = `<select id="override-val-${index}" class="w-full bg-white border-2 border-slate-200 text-slate-800 font-semibold rounded-lg p-2.5 outline-none">${options}</select>`;
         } else if (prop.type === 'Dropdown (Game)') {
           let options = `<option value="">Select a game...</option>`;
-          propGames.forEach(game => {
-            options += `<option value="${game}" ${currentChoice === game ? 'selected' : ''}>${game}</option>`;
-          });
-          inputHtml = `
-            <div class="relative">
-              <select onchange="selectProp('${prop.title}', this.value)" ${isLocked ? 'disabled' : ''} class="w-full border-2 border-slate-200 text-slate-800 font-semibold rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 appearance-none outline-none ${isLocked ? 'opacity-60 cursor-not-allowed bg-slate-50' : 'bg-white'}">
-                ${options}
-              </select>
-              <div class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs">▼</div>
-            </div>
-          `;
+          adminPropData.games.forEach(game => { options += `<option value="${game}">${game}</option>`; });
+          inputHtml = `<select id="override-val-${index}" class="w-full bg-white border-2 border-slate-200 text-slate-800 font-semibold rounded-lg p-2.5 outline-none">${options}</select>`;
         }
 
         html += `
-          <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-4">
-            <div class="flex justify-between items-start mb-1">
-              <h3 class="font-bold text-slate-800 text-lg leading-tight flex items-center">
-                ${prop.title}
-                ${isLocked ? '<span class="ml-2 text-base">🔒</span>' : ''}
-              </h3>
-            </div>
-            <p class="text-sm text-slate-500 mb-4 leading-snug">${prop.description}</p>
-            ${inputHtml}
-            <div class="mt-4 bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600 flex justify-between items-center">
-              <span class="font-bold uppercase tracking-wider text-[10px] text-slate-400">Result</span>
-              <div class="font-semibold flex items-center">${displayOutcome} ${resultBadge}</div>
-            </div>
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-4" id="admin-prop-card-${index}">
+             <div class="flex justify-between items-start mb-1">
+                <h3 class="font-bold text-slate-800 leading-tight pr-2">${prop.title}</h3>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase whitespace-nowrap ${badgeClass}">${prop.status}</span>
+             </div>
+             <p class="text-xs text-slate-500 mb-2">${prop.description}</p>
+             ${prop.summary ? `<div class="p-2 bg-slate-50 border border-slate-100 rounded text-[10px] text-slate-500 italic leading-snug mb-3">"${prop.summary}"</div>` : ''}
+             
+             <div class="mt-3 p-3 bg-slate-50 rounded-lg flex justify-between items-center border border-slate-100">
+               <span class="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Current Outcome</span>
+               <span class="font-bold text-slate-800">${prop.outcome || 'TBD'}</span>
+             </div>
+             
+             <div id="admin-prop-actions-${index}" class="mt-4 flex gap-2">
+                 ${prop.status === 'Confirmed' 
+                   ? `<button onclick="toggleAdminPropOverride(${index})" class="w-full text-xs font-bold text-slate-500 bg-slate-100 py-3 rounded-xl hover:bg-slate-200 transition">Edit Override</button>` 
+                   : `<button onclick="submitAdminPropReview('${prop.title}', '${prop.outcome}', 'Confirmed')" class="flex-1 text-xs font-bold text-white bg-emerald-500 py-3 rounded-xl hover:bg-emerald-600 transition shadow-sm">Confirm Output</button>
+                      <button onclick="toggleAdminPropOverride(${index})" class="flex-1 text-xs font-bold text-slate-600 bg-white border border-slate-200 py-3 rounded-xl hover:bg-slate-50 transition shadow-sm">Manual Override</button>`
+                 }
+             </div>
+             
+             <div id="admin-prop-override-${index}" class="hidden mt-4 pt-4 border-t border-slate-100">
+                 <label class="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Select New Outcome</label>
+                 ${inputHtml}
+                 <div class="flex gap-2 mt-3">
+                   <button onclick="toggleAdminPropOverride(${index})" class="flex-1 text-xs font-bold text-slate-500 bg-slate-100 py-3 rounded-xl hover:bg-slate-200 transition">Cancel</button>
+                   <button onclick="saveAdminPropOverride(${index}, '${prop.title}')" class="flex-1 text-xs font-bold text-white bg-blue-500 py-3 rounded-xl hover:bg-blue-600 transition shadow-sm">Save Override</button>
+                 </div>
+             </div>
           </div>
         `;
       });
-
       container.innerHTML = html;
     }
 
-    function selectProp(propTitle, choice) {
-      propPicks[propTitle] = choice;
-      markUnsaved('props');
+    function toggleAdminPropOverride(index) {
+      const actions = document.getElementById(`admin-prop-actions-${index}`);
+      const override = document.getElementById(`admin-prop-override-${index}`);
       
-      // Re-render to update UI states immediately
-      renderPropsList();
-    }
-
-    async function handleSaveProps() {
-      const saveBtn = document.getElementById('save-props-btn');
-      saveBtn.innerText = 'SAVING...';
-      saveBtn.disabled = true;
-
-      const picksPayload = [];
-      Object.keys(propPicks).forEach(title => {
-        picksPayload.push({
-          name: title,
-          choice: propPicks[title]
-        });
-      });
-
-      const res = await apiCall({
-        action: 'submit_prop_picks',
-        email: state.email,
-        week: state.viewedWeek,
-        picks: picksPayload
-      });
-
-      saveBtn.innerText = 'SAVE PROPS';
-      saveBtn.disabled = false;
-
-      if (res && res.success) {
-        hasUnsavedPropChanges = false;
-        
-        if (state.viewedWeek === state.currentWeek) {
-          let hasMissing = false;
-          currentProps.forEach(prop => {
-            if (!propPicks[prop.title] || propPicks[prop.title] === '') {
-              hasMissing = true;
-            }
-          });
-          state.missingPropPicks = hasMissing;
-
-          const propBadge = document.getElementById('missing-props-badge');
-          if (propBadge) {
-             if (state.missingPropPicks) propBadge.classList.remove('hidden');
-             else propBadge.classList.add('hidden');
-          }
-        }
-
-        updateSaveBarUI('props');
-        return true;
+      if (override.classList.contains('hidden')) {
+        override.classList.remove('hidden');
+        actions.classList.add('hidden');
       } else {
-        alert(res.message || "Failed to save prop picks.");
-        return false;
+        override.classList.add('hidden');
+        actions.classList.remove('hidden');
       }
     }
 
-
-    // --- MODAL DIALOG LOGIC --- //
-
-    function showUnsavedModal(type) {
-      const modal = document.getElementById('unsaved-modal');
-      modal.setAttribute('data-active-type', type);
-      modal.classList.remove('hidden');
-    }
-
-    function hideUnsavedModal() {
-      document.getElementById('unsaved-modal').classList.add('hidden');
-    }
-
-    async function resolveUnsavedChoice(choice) {
-      const modal = document.getElementById('unsaved-modal');
-      const type = modal.getAttribute('data-active-type');
-      hideUnsavedModal();
-      
-      if (choice === 'continue') {
-        if(type === 'picks') document.getElementById('week-selector').value = state.viewedWeek;
-        if(type === 'props') document.getElementById('prop-week-selector').value = state.viewedWeek;
-        pendingNavigationTarget = null;
+    async function submitAdminPropReview(title, outcome, status) {
+      if (!outcome || outcome === 'TBD' || outcome === '') {
+        alert("Cannot confirm a blank or TBD outcome. Use Manual Override.");
         return;
       }
       
-      if (choice === 'save') {
-        let savedSuccessfully = false;
-        if (type === 'picks') savedSuccessfully = await handleSavePicks();
-        if (type === 'props') savedSuccessfully = await handleSaveProps();
-        if (type === 'post') savedSuccessfully = await handleSaveAdminPost('Draft'); 
-        
-        if (!savedSuccessfully) {
-          pendingNavigationTarget = null;
-          return;
-        }
-      } else { // discard
-        if (type === 'picks') restorePicksFromSnapshot();
-        if (type === 'props') {
-          hasUnsavedPropChanges = false;
-          loadAndRenderProps(); 
-        }
-        if (type === 'post') {
-          hasUnsavedPostChanges = false;
-        }
-      }
+      const res = await apiCall({
+        action: 'admin_save_prop_review',
+        email: state.email,
+        week: adminViewedWeek,
+        title: title,
+        outcome: outcome,
+        status: status
+      });
 
-      if (pendingNavigationTarget) {
-        if (pendingNavigationTarget.targetWeek) {
-          state.viewedWeek = pendingNavigationTarget.targetWeek;
-          if(pendingNavigationTarget.type === 'picks') {
-            document.getElementById('week-selector').value = state.viewedWeek;
-            loadAndRenderPicks();
-          } else {
-            document.getElementById('prop-week-selector').value = state.viewedWeek;
-            loadAndRenderProps();
-          }
-        } else {
-          navigate(pendingNavigationTarget.viewId, pendingNavigationTarget.pushHistory);
-        }
-        pendingNavigationTarget = null;
+      if (res && res.success) {
+        loadAdminPropReview(); 
+      } else {
+        alert(res.message || "Failed to update prop.");
       }
     }
 
-    window.addEventListener('DOMContentLoaded', initApp);
+    function saveAdminPropOverride(index, title) {
+      const inputEl = document.getElementById(`override-val-${index}`);
+      const outcome = inputEl.value.trim();
+      
+      if (!outcome) {
+        alert("Please select or enter an outcome.");
+        return;
+      }
+      
+      submitAdminPropReview(title, outcome, 'Confirmed');
+    }
+
   </script>
 </head>
 <body class="text-slate-900 pb-safe">
@@ -1998,6 +1587,10 @@
           <div class="flex items-center"><span class="text-2xl mr-3">⭐</span><span class="font-semibold text-lg text-slate-700">Set Featured Games</span></div>
           <span class="text-slate-400">→</span>
         </button>
+        <button onclick="attemptNavigation('admin-prop-review-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
+          <div class="flex items-center"><span class="text-2xl mr-3">🕵️</span><span class="font-semibold text-lg text-slate-700">Prop Review</span></div>
+          <span class="text-slate-400">→</span>
+        </button>
         <button onclick="attemptNavigation('admin-post-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
           <div class="flex items-center"><span class="text-2xl mr-3">📝</span><span class="font-semibold text-lg text-slate-800">Write League Post</span></div>
           <span class="text-slate-400">→</span>
@@ -2027,6 +1620,21 @@
         <button id="admin-post-draft-btn" onclick="handleSaveAdminPost('Draft')" class="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-4 rounded-xl transition shadow-sm">Save Draft</button>
         <button id="admin-post-pub-btn" onclick="handleSaveAdminPost('Posted')" class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 rounded-xl transition shadow-sm">Publish Post</button>
       </div>
+    </div>
+
+    <!-- Admin Prop Review View -->
+    <div id="admin-prop-review-view" class="view-container hidden mt-6">
+      <div class="flex items-center mb-6 px-1">
+        <button onclick="attemptNavigation('admin-menu-view', false)" class="text-slate-400 hover:text-slate-600 font-bold mr-4 text-xl">&larr;</button>
+        <h2 class="text-2xl font-bold text-slate-800 mr-4">Prop Review</h2>
+        <div class="relative">
+          <select id="admin-prop-week-selector" onchange="handleAdminPropWeekChange(this.value)" class="text-xl font-bold text-slate-800 bg-transparent border-none outline-none cursor-pointer appearance-none pr-6 z-10 relative focus:ring-0">
+          </select>
+          <div class="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">▼</div>
+        </div>
+      </div>
+      
+      <div id="admin-prop-list" class="mb-4"></div>
     </div>
 
     <!-- Admin Users View -->
