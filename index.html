@@ -15,9 +15,11 @@
     @supports (padding-bottom: env(safe-area-inset-bottom)) {
       .pb-safe { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
       .bottom-sticky-bar { bottom: calc(5rem + env(safe-area-inset-bottom)); }
+      .chat-bottom-input { bottom: calc(4.5rem + env(safe-area-inset-bottom)); }
     }
     @supports not (padding-bottom: env(safe-area-inset-bottom)) {
       .bottom-sticky-bar { bottom: 5rem; }
+      .chat-bottom-input { bottom: 4.5rem; }
     }
     
     body { 
@@ -32,7 +34,6 @@
     .drag-handle { cursor: grab; }
     .drag-handle:active { cursor: grabbing; }
 
-    /* Custom Fire Effects */
     .fire-bg {
       background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
       border-color: #c2410c !important;
@@ -46,7 +47,6 @@
         0 -6px 8px #dc2626;
     }
 
-    /* Grid Styles for Leaderboards */
     .table-sticky-col-1 { position: sticky; left: 0; background-color: #f8fafc; z-index: 10; min-width: 100px; max-width: 100px; }
     .table-sticky-col-2 { position: sticky; left: 100px; background-color: #f8fafc; z-index: 10; min-width: 45px; max-width: 45px; border-right: 1px solid #e2e8f0;}
     .table-sticky-header { position: sticky; top: 0; background-color: #f1f5f9; z-index: 20; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
@@ -68,28 +68,27 @@
       missingPropPicks: false 
     };
     
-    // Pick Data
     let currentWeekGames = [];
     let userPicks = {}; 
     let hasUnsavedChanges = false;
     let savedPicksSnapshot = null; 
     
-    // Prop Data
     let currentProps = [];
     let propPicks = {};
     let propTeams = [];
     let propGames = [];
     let hasUnsavedPropChanges = false;
 
-    // Leaderboard Data
     let lbDataRaw = { users: [], weekly: {} };
     let weeklyLbData = { ranks: [], games: [], picks: [] };
     
+    let socialData = { posts: [], chats: [] };
+    let hasUnsavedPostChanges = false;
+
     let pendingNavigationTarget = null;
     let sortableInstance = null;
     let adminUsersData = [];
 
-    // Admin Featured State
     let adminFeaturedGames = [];
     let adminSelectedFeatured = [];
     let adminFeaturedStatus = 'Not Set';
@@ -128,6 +127,7 @@
              document.getElementById('admin-nav-btn').classList.remove('hidden');
           }
 
+          fetchSocialDataInBackground();
           navigate('home-view', true);
           return;
         }
@@ -175,6 +175,12 @@
         showUnsavedModal('props');
         return;
       }
+
+      if (currentView === 'admin-post-view' && targetViewId !== 'admin-post-view' && hasUnsavedPostChanges) {
+        pendingNavigationTarget = { viewId: targetViewId, pushHistory, type: 'post' };
+        showUnsavedModal('post');
+        return;
+      }
       
       navigate(targetViewId, pushHistory);
     }
@@ -204,6 +210,7 @@
           if (!state.name || state.name.trim() === '') nameBadge.classList.remove('hidden');
           else nameBadge.classList.add('hidden');
         }
+        evaluateSocialUnreadBadges();
       }
 
       if (viewId === 'weekly-menu-view') {
@@ -231,6 +238,10 @@
         loadAndRenderProps();
       }
 
+      if (viewId === 'leaderboard-menu-view') {
+        fetchLeaderboardData();
+      }
+
       if (viewId === 'season-leaderboard-view') {
         loadSeasonLeaderboard('Total'); 
       }
@@ -248,6 +259,18 @@
         loadSubLeaderboard('featPts', 'featured-leaderboard-container');
       }
 
+      if (viewId === 'social-view') {
+        renderSocialView();
+      }
+
+      if (viewId === 'all-posts-view') {
+        renderAllPostsView();
+      }
+
+      if (viewId === 'chat-view') {
+        renderChatView();
+      }
+
       if (viewId === 'account-view') {
         renderAccountView();
       }
@@ -260,7 +283,249 @@
         populateWeekDropdown('admin-featured-week-selector', adminViewedWeek);
         loadAdminFeaturedPicks();
       }
+
+      if (viewId === 'admin-post-view') {
+        loadAdminPostDraft();
+      }
     }
+
+    // --- SOCIAL LOGIC (POSTS & CHAT) --- //
+
+    async function fetchSocialDataInBackground() {
+      const res = await apiCall({ action: 'get_social_data' });
+      if (res && res.success) {
+        socialData.posts = res.posts || [];
+        socialData.chats = res.chats || [];
+        evaluateSocialUnreadBadges();
+      }
+    }
+
+    function evaluateSocialUnreadBadges() {
+      const lastReadPost = Number(localStorage.getItem('nfl_last_read_post')) || 0;
+      const lastReadChat = Number(localStorage.getItem('nfl_last_read_chat')) || 0;
+      
+      let hasUnreadPost = false;
+      const activePosts = socialData.posts.filter(p => p.status === 'Posted');
+      if (activePosts.length > 0 && activePosts[0].timestamp > lastReadPost) {
+        hasUnreadPost = true;
+      }
+
+      let hasUnreadChat = false;
+      if (socialData.chats.length > 0 && socialData.chats[socialData.chats.length - 1].timestamp > lastReadChat) {
+        hasUnreadChat = true;
+      }
+
+      const homeBadge = document.getElementById('home-unread-badge');
+      if (homeBadge) {
+        if (hasUnreadPost || hasUnreadChat) homeBadge.classList.remove('hidden');
+        else homeBadge.classList.add('hidden');
+      }
+
+      const footerBadge = document.getElementById('footer-chat-badge');
+      if (footerBadge) {
+        if (hasUnreadChat || hasUnreadPost) footerBadge.classList.remove('hidden');
+        else footerBadge.classList.add('hidden');
+      }
+    }
+
+    function renderSocialView() {
+      const activePosts = socialData.posts.filter(p => p.status === 'Posted');
+      const container = document.getElementById('latest-post-container');
+      
+      if (activePosts.length === 0) {
+        container.innerHTML = `<div class="p-8 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">No league updates available.</div>`;
+      } else {
+        const post = activePosts[0];
+        container.innerHTML = `
+          <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 mb-4">
+            <div class="flex justify-between items-start mb-3">
+              <h3 class="font-bold text-slate-800 text-xl leading-tight pr-4">${post.title}</h3>
+              <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider whitespace-nowrap pt-1">${post.dateStr}</span>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">${post.body}</p>
+          </div>
+          <div class="flex gap-3 px-1 mb-8">
+            <button onclick="attemptNavigation('all-posts-view')" class="flex-1 bg-white border border-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl hover:bg-slate-50 transition shadow-sm">View All Posts</button>
+            <button onclick="markPostRead(${post.timestamp})" class="flex-1 bg-slate-100 border border-slate-200 text-slate-500 font-bold text-xs py-3 rounded-xl hover:bg-slate-200 transition shadow-sm">Mark as Read</button>
+          </div>
+        `;
+      }
+    }
+
+    function markPostRead(timestamp) {
+      localStorage.setItem('nfl_last_read_post', timestamp);
+      evaluateSocialUnreadBadges();
+      alert("Post marked as read.");
+    }
+
+    function renderAllPostsView() {
+      const activePosts = socialData.posts.filter(p => p.status === 'Posted');
+      const container = document.getElementById('all-posts-container');
+      
+      if (activePosts.length === 0) {
+        container.innerHTML = `<div class="p-8 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">No league updates available.</div>`;
+        return;
+      }
+
+      let html = '<div class="space-y-3">';
+      activePosts.forEach((post, index) => {
+        html += `
+          <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+            <button onclick="togglePostAccordion(${index})" class="w-full flex items-center justify-between p-4 text-left hover:bg-slate-50 transition-colors">
+              <span class="font-bold text-slate-800 pr-4">${post.title}</span>
+              <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider whitespace-nowrap">${post.dateStr}</span>
+            </button>
+            <div id="post-body-${index}" class="hidden px-4 pb-4 border-t border-slate-50 pt-3">
+              <p class="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">${post.body}</p>
+            </div>
+          </div>
+        `;
+      });
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function togglePostAccordion(index) {
+      const el = document.getElementById(`post-body-${index}`);
+      if (el.classList.contains('hidden')) el.classList.remove('hidden');
+      else el.classList.add('hidden');
+    }
+
+    async function refreshChat() {
+      const btn = document.getElementById('chat-refresh-btn');
+      btn.innerText = '↻ Refreshing...';
+      await fetchSocialDataInBackground();
+      renderChatView();
+      btn.innerText = '↻ Refresh';
+    }
+
+    function renderChatView() {
+      const container = document.getElementById('chat-messages-container');
+      
+      if (socialData.chats.length > 0) {
+        localStorage.setItem('nfl_last_read_chat', socialData.chats[socialData.chats.length - 1].timestamp);
+        evaluateSocialUnreadBadges();
+      }
+
+      let html = '';
+      socialData.chats.forEach(chat => {
+        const isMe = chat.sender === state.name;
+        
+        if (isMe) {
+          html += `
+            <div class="flex flex-col items-end mb-4">
+              <span class="text-[9px] text-slate-400 font-semibold mb-1 pr-1">${chat.dateStr}</span>
+              <div class="bg-blue-500 text-white rounded-2xl rounded-tr-sm px-4 py-2 max-w-[80%] shadow-sm text-sm">
+                ${chat.message}
+              </div>
+            </div>
+          `;
+        } else {
+          html += `
+            <div class="flex flex-col items-start mb-4">
+              <div class="flex items-baseline gap-2 mb-1 pl-1">
+                <span class="text-[10px] font-bold text-slate-700">${chat.sender}</span>
+                <span class="text-[8px] text-slate-400 font-semibold">${chat.dateStr}</span>
+              </div>
+              <div class="bg-white border border-slate-200 text-slate-800 rounded-2xl rounded-tl-sm px-4 py-2 max-w-[80%] shadow-sm text-sm">
+                ${chat.message}
+              </div>
+            </div>
+          `;
+        }
+      });
+      
+      container.innerHTML = html || '<div class="p-8 text-center text-slate-400">Be the first to send a message!</div>';
+      container.scrollTop = container.scrollHeight;
+    }
+
+    async function handleSendChat() {
+      const input = document.getElementById('chat-input');
+      const message = input.value.trim();
+      if (!message) return;
+
+      const btn = document.getElementById('chat-send-btn');
+      btn.disabled = true;
+      btn.classList.add('opacity-50');
+
+      input.value = '';
+
+      // Optimistic Render
+      const tempChat = {
+        timestamp: new Date().getTime(),
+        dateStr: "Sending...",
+        sender: state.name,
+        message: message
+      };
+      socialData.chats.push(tempChat);
+      renderChatView();
+
+      const res = await apiCall({ action: 'send_chat', email: state.email, message: message });
+      
+      if (res && res.success) {
+        await fetchSocialDataInBackground();
+        renderChatView();
+      } else {
+        alert("Failed to send message. Please try again.");
+      }
+
+      btn.disabled = false;
+      btn.classList.remove('opacity-50');
+    }
+
+    function loadAdminPostDraft() {
+      hasUnsavedPostChanges = false;
+      const titleEl = document.getElementById('admin-post-title');
+      const bodyEl = document.getElementById('admin-post-body');
+      
+      const drafts = socialData.posts.filter(p => p.status === 'Draft');
+      if (drafts.length > 0) {
+        titleEl.value = drafts[0].title;
+        bodyEl.value = drafts[0].body;
+      } else {
+        titleEl.value = '';
+        bodyEl.value = '';
+      }
+    }
+
+    function markPostUnsaved() {
+      hasUnsavedPostChanges = true;
+    }
+
+    async function handleSaveAdminPost(status) {
+      const title = document.getElementById('admin-post-title').value.trim();
+      const body = document.getElementById('admin-post-body').value.trim();
+
+      if (!title || !body) {
+        alert("Title and Body are required.");
+        return false;
+      }
+
+      const draftBtn = document.getElementById('admin-post-draft-btn');
+      const pubBtn = document.getElementById('admin-post-pub-btn');
+      draftBtn.disabled = true; pubBtn.disabled = true;
+      draftBtn.classList.add('opacity-50'); pubBtn.classList.add('opacity-50');
+
+      const res = await apiCall({ action: 'admin_save_post', email: state.email, title: title, body: body, status: status });
+      
+      draftBtn.disabled = false; pubBtn.disabled = false;
+      draftBtn.classList.remove('opacity-50'); pubBtn.classList.remove('opacity-50');
+
+      if (res && res.success) {
+        hasUnsavedPostChanges = false;
+        alert(`Post ${status === 'Draft' ? 'saved as Draft' : 'Published'}!`);
+        fetchSocialDataInBackground(); // Background refresh to update social lists
+        
+        if (status === 'Posted') {
+          attemptNavigation('admin-menu-view');
+        }
+        return true;
+      } else {
+        alert("Failed to save post.");
+        return false;
+      }
+    }
+
 
     // --- LEADERBOARD LOGIC --- //
 
@@ -446,7 +711,7 @@
 
     function handleWeeklyLbWeekChange(newWeek) {
       state.viewedWeek = Number(newWeek);
-      loadWeeklyLeaderboard('Total'); // Default back to Total on week change
+      loadWeeklyLeaderboard('Total'); 
     }
 
     async function loadWeeklyLeaderboard(tab = 'Total') {
@@ -1082,6 +1347,8 @@
       } else if (type === 'props') {
         hasUnsavedPropChanges = true;
         updateSaveBarUI('props');
+      } else if (type === 'post') {
+        hasUnsavedPostChanges = true;
       }
     }
 
@@ -1391,6 +1658,7 @@
         let savedSuccessfully = false;
         if (type === 'picks') savedSuccessfully = await handleSavePicks();
         if (type === 'props') savedSuccessfully = await handleSaveProps();
+        if (type === 'post') savedSuccessfully = await handleSaveAdminPost('Draft'); // Save as draft if resolving
         
         if (!savedSuccessfully) {
           pendingNavigationTarget = null;
@@ -1401,6 +1669,9 @@
         if (type === 'props') {
           hasUnsavedPropChanges = false;
           loadAndRenderProps(); // Reload original state from backend
+        }
+        if (type === 'post') {
+          hasUnsavedPostChanges = false;
         }
       }
 
@@ -1454,6 +1725,14 @@
     <!-- Home View -->
     <div id="home-view" class="view-container hidden space-y-4 mt-6">
       <h2 class="text-2xl font-bold px-1 text-slate-800">Dashboard</h2>
+
+      <button onclick="attemptNavigation('social-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
+        <div class="flex items-center"><span class="text-2xl mr-3">📣</span><span class="font-semibold text-lg text-slate-700">League Updates</span></div>
+        <div class="flex items-center">
+          <span id="home-unread-badge" class="hidden w-3 h-3 bg-red-500 rounded-full shadow-sm mr-3 animate-pulse"></span>
+          <span class="text-slate-400">→</span>
+        </div>
+      </button>
       
       <button onclick="attemptNavigation('weekly-menu-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
         <div class="flex items-center"><span class="text-2xl mr-3">🏈</span><span class="font-semibold text-lg text-slate-700">Weekly Picks</span></div>
@@ -1560,6 +1839,51 @@
       <div id="featured-leaderboard-container"></div>
     </div>
 
+    <!-- Social View (Posts) -->
+    <div id="social-view" class="view-container hidden mt-6">
+      <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">League Updates</h2>
+      
+      <div id="latest-post-container"></div>
+
+      <button onclick="attemptNavigation('chat-view')" class="w-full bg-slate-900 p-5 rounded-2xl shadow-sm flex items-center justify-between active:scale-95 transition-transform">
+        <div class="flex items-center"><span class="text-2xl mr-3">💬</span><span class="font-bold text-lg text-white">Enter League Chat</span></div>
+        <span class="text-slate-400">→</span>
+      </button>
+    </div>
+
+    <!-- All Posts View -->
+    <div id="all-posts-view" class="view-container hidden mt-6">
+      <div class="flex items-center mb-6 px-1">
+        <button onclick="attemptNavigation('social-view', false)" class="text-slate-400 hover:text-slate-600 font-bold mr-4 text-xl">&larr;</button>
+        <h2 class="text-2xl font-bold text-slate-800">All Posts</h2>
+      </div>
+      <div id="all-posts-container"></div>
+    </div>
+
+    <!-- Chat View -->
+    <div id="chat-view" class="view-container hidden mt-4 flex flex-col h-[calc(100vh-140px)]">
+      <div class="flex items-center justify-between mb-4 px-1 shrink-0">
+        <div class="flex items-center">
+          <button onclick="attemptNavigation('social-view', false)" class="text-slate-400 hover:text-slate-600 font-bold mr-4 text-xl">&larr;</button>
+          <h2 class="text-xl font-bold text-slate-800">League Chat</h2>
+        </div>
+        <button id="chat-refresh-btn" onclick="refreshChat()" class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full hover:bg-slate-200">↻ Refresh</button>
+      </div>
+
+      <div id="chat-messages-container" class="flex-1 overflow-y-auto mb-16 px-1 custom-scrollbar">
+        <!-- Chat messages dynamically injected -->
+      </div>
+
+      <div class="fixed left-0 right-0 max-w-md mx-auto px-4 z-30 chat-bottom-input bg-slate-50/90 backdrop-blur-md pt-3 pb-2 border-t border-slate-200 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)]">
+        <div class="flex gap-2">
+          <input type="text" id="chat-input" placeholder="Type a message..." class="flex-1 border border-slate-300 rounded-full px-4 py-3 text-sm focus:outline-none focus:border-blue-500 shadow-inner">
+          <button id="chat-send-btn" onclick="handleSendChat()" class="bg-blue-500 hover:bg-blue-600 text-white rounded-full w-12 flex items-center justify-center transition-colors shadow-sm">
+            <svg class="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Account View -->
     <div id="account-view" class="view-container hidden mt-6">
       <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">My Account</h2>
@@ -1620,8 +1944,9 @@
           <div class="flex items-center"><span class="text-2xl mr-3">⭐</span><span class="font-semibold text-lg text-slate-700">Set Featured Games</span></div>
           <span class="text-slate-400">→</span>
         </button>
-        <button class="w-full bg-slate-50 p-5 rounded-2xl border border-slate-100 flex items-center justify-between opacity-60 cursor-not-allowed">
-          <div class="flex items-center"><span class="text-2xl mr-3">📝</span><span class="font-semibold text-lg text-slate-500">Write League Post</span></div>
+        <button onclick="attemptNavigation('admin-post-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
+          <div class="flex items-center"><span class="text-2xl mr-3">📝</span><span class="font-semibold text-lg text-slate-800">Write League Post</span></div>
+          <span class="text-slate-400">→</span>
         </button>
         <button class="w-full bg-slate-50 p-5 rounded-2xl border border-slate-100 flex items-center justify-between opacity-60 cursor-not-allowed">
           <div class="flex items-center"><span class="text-2xl mr-3">🖼️</span><span class="font-semibold text-lg text-slate-500">Update Banner</span></div>
@@ -1629,9 +1954,36 @@
       </div>
     </div>
 
+    <!-- Admin Post View -->
+    <div id="admin-post-view" class="view-container hidden mt-6">
+      <div class="flex items-center mb-6 px-1">
+        <button onclick="attemptNavigation('admin-menu-view', false)" class="text-slate-400 hover:text-slate-600 font-bold mr-4 text-xl">&larr;</button>
+        <h2 class="text-2xl font-bold text-slate-800">Create Post</h2>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+        <div>
+          <label class="block text-sm font-bold text-slate-700 mb-1">Post Title</label>
+          <input type="text" id="admin-post-title" oninput="markPostUnsaved()" class="w-full border-slate-300 rounded-lg p-3 border focus:ring-slate-900 outline-none transition" placeholder="Give it a catchy title">
+        </div>
+        <div>
+          <label class="block text-sm font-bold text-slate-700 mb-1">Body Content</label>
+          <textarea id="admin-post-body" oninput="markPostUnsaved()" rows="8" class="w-full border-slate-300 rounded-lg p-3 border focus:ring-slate-900 outline-none transition resize-none" placeholder="Write your post here..."></textarea>
+        </div>
+      </div>
+      
+      <div class="flex gap-3 mt-6">
+        <button id="admin-post-draft-btn" onclick="handleSaveAdminPost('Draft')" class="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-4 rounded-xl transition shadow-sm">Save Draft</button>
+        <button id="admin-post-pub-btn" onclick="handleSaveAdminPost('Posted')" class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 rounded-xl transition shadow-sm">Publish Post</button>
+      </div>
+    </div>
+
     <!-- Admin Users View -->
     <div id="admin-users-view" class="view-container hidden mt-6">
-      <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">Manage Users</h2>
+      <div class="flex items-center mb-6 px-1">
+        <button onclick="attemptNavigation('admin-menu-view', false)" class="text-slate-400 hover:text-slate-600 font-bold mr-4 text-xl">&larr;</button>
+        <h2 class="text-2xl font-bold text-slate-800">Manage Users</h2>
+      </div>
       <button onclick="promptAdminAddUser()" class="w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl shadow-md hover:bg-slate-800 transition mb-4">
         + Add New User
       </button>
@@ -1650,10 +2002,13 @@
     <!-- Admin Featured Games View -->
     <div id="admin-featured-view" class="view-container hidden mt-6">
       <div class="flex items-center justify-between px-1 mb-2">
-        <div class="relative">
-          <select id="admin-featured-week-selector" onchange="handleAdminFeaturedWeekChange(this.value)" class="text-2xl font-bold text-slate-800 bg-transparent border-none outline-none cursor-pointer appearance-none pr-6 z-10 relative focus:ring-0">
-          </select>
-          <div class="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">▼</div>
+        <div class="flex items-center">
+          <button onclick="attemptNavigation('admin-menu-view', false)" class="text-slate-400 hover:text-slate-600 font-bold mr-4 text-xl">&larr;</button>
+          <div class="relative">
+            <select id="admin-featured-week-selector" onchange="handleAdminFeaturedWeekChange(this.value)" class="text-2xl font-bold text-slate-800 bg-transparent border-none outline-none cursor-pointer appearance-none pr-6 z-10 relative focus:ring-0">
+            </select>
+            <div class="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">▼</div>
+          </div>
         </div>
         <div class="flex flex-col items-end">
           <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Current Status</span>
@@ -1722,10 +2077,15 @@
 
   </main>
 
-  <nav id="bottom-nav" class="hidden fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-200 px-6 py-3 flex justify-around text-xs font-semibold text-slate-400 z-40 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.02)]">
+  <nav id="bottom-nav" class="hidden fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-200 px-4 py-3 flex justify-between sm:justify-around text-xs font-semibold text-slate-400 z-40 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.02)]">
     <button onclick="attemptNavigation('home-view')" class="flex flex-col items-center hover:text-slate-900 transition"><span class="text-xl mb-1">🏠</span>Home</button>
     <button onclick="attemptNavigation('weekly-menu-view')" class="flex flex-col items-center hover:text-slate-900 transition"><span class="text-xl mb-1">🏈</span>Picks</button>
     <button onclick="attemptNavigation('leaderboard-menu-view')" class="flex flex-col items-center hover:text-slate-900 transition"><span class="text-xl mb-1">🏆</span>Board</button>
+    <button onclick="attemptNavigation('social-view')" class="flex flex-col items-center hover:text-slate-900 transition relative">
+      <span class="text-xl mb-1">💬</span>
+      <span id="footer-chat-badge" class="hidden absolute top-0 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></span>
+      League
+    </button>
     <button id="admin-nav-btn" onclick="attemptNavigation('admin-menu-view')" class="hidden flex flex-col items-center hover:text-slate-900 transition"><span class="text-xl mb-1">⚙️</span>Admin</button>
   </nav>
 
