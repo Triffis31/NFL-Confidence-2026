@@ -34,6 +34,7 @@
     .drag-handle { cursor: grab; }
     .drag-handle:active { cursor: grabbing; }
 
+    /* Custom Fire Effects */
     .fire-bg {
       background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
       border-color: #c2410c !important;
@@ -47,6 +48,7 @@
         0 -6px 8px #dc2626;
     }
 
+    /* Grid Styles for Leaderboards */
     .table-sticky-col-1 { position: sticky; left: 0; background-color: #f8fafc; z-index: 10; min-width: 100px; max-width: 100px; }
     .table-sticky-col-2 { position: sticky; left: 100px; background-color: #f8fafc; z-index: 10; min-width: 45px; max-width: 45px; border-right: 1px solid #e2e8f0;}
     .table-sticky-header { position: sticky; top: 0; background-color: #f1f5f9; z-index: 20; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
@@ -85,6 +87,7 @@
     let lbDataRaw = { users: [], weekly: {} };
     let weeklyLbData = { ranks: [], games: [], picks: [] };
     
+    // Social Data
     let socialData = { posts: [], chats: [] };
     let hasUnsavedPostChanges = false;
 
@@ -342,7 +345,7 @@
         const post = activePosts[0];
         
         // Auto-mark as read
-        localStorage.setItem('nfl_last_read_post', post.timestamp);
+        localStorage.setItem('nfl_last_read_post', post.timestamp.toString());
         evaluateSocialUnreadBadges();
 
         container.innerHTML = `
@@ -369,8 +372,8 @@
         return;
       }
 
-      // Ensure the newest post is marked as read if they bypassed the main view
-      localStorage.setItem('nfl_last_read_post', activePosts[0].timestamp);
+      // Auto-mark as read if they bypassed the main view
+      localStorage.setItem('nfl_last_read_post', activePosts[0].timestamp.toString());
       evaluateSocialUnreadBadges();
 
       let html = '<div class="space-y-3">';
@@ -408,8 +411,9 @@
     function renderChatView() {
       const container = document.getElementById('chat-messages-container');
       
+      // Auto-mark chat as read
       if (socialData.chats.length > 0) {
-        localStorage.setItem('nfl_last_read_chat', socialData.chats[socialData.chats.length - 1].timestamp);
+        localStorage.setItem('nfl_last_read_chat', socialData.chats[socialData.chats.length - 1].timestamp.toString());
         evaluateSocialUnreadBadges();
       }
 
@@ -530,7 +534,6 @@
         return false;
       }
     }
-
 
     // --- LEADERBOARD LOGIC --- //
 
