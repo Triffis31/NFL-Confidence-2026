@@ -221,6 +221,17 @@
       }
     }
 
+    async function promptRequestUser() {
+      const newEmail = prompt("Enter the email address to request an invite for:");
+      if (!newEmail || newEmail.trim() === '') return;
+      const res = await apiCall({ action: 'request_user', email: state.email, newEmail: newEmail.trim() });
+      if (res && res.success) {
+        alert("Request submitted successfully! An admin will review it.");
+      } else {
+        alert(res.message || "Error requesting user.");
+      }
+    }
+
     // --- NAVIGATION & VIEWS --- //
 
     function attemptNavigation(targetViewId, pushHistory = true) {
@@ -1001,7 +1012,16 @@
       const filter = document.getElementById('admin-filter').value;
       const filtered = adminUsersData.filter(u => {
         const matchSearch = u.name.toLowerCase().includes(search) || u.email.toLowerCase().includes(search);
-        const matchFilter = filter === 'All' || String(u.paid).startsWith(filter);
+        let matchFilter = false;
+        
+        if (filter === 'All') {
+          matchFilter = true;
+        } else if (filter === 'Requested' || filter === 'Denied') {
+          matchFilter = u.role === filter;
+        } else {
+          matchFilter = String(u.paid).startsWith(filter);
+        }
+        
         return matchSearch && matchFilter;
       });
       renderAdminUsersList(filtered);
@@ -1016,10 +1036,38 @@
       let html = '';
       users.forEach(u => {
         let badgeClass = '';
-        let displayPaid = String(u.paid);
-        if (displayPaid.startsWith('Paid')) badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-200';
-        else if (displayPaid.startsWith('Pending')) badgeClass = 'bg-amber-100 text-amber-800 border-amber-200';
-        else badgeClass = 'bg-red-100 text-red-800 border-red-200';
+        let displayBadge = String(u.paid);
+        let actionOptions = '';
+        
+        if (u.role === 'Requested') {
+            badgeClass = 'bg-purple-100 text-purple-800 border-purple-200';
+            displayBadge = 'Requested';
+            actionOptions = `
+                <option value="">Actions...</option>
+                <option value="confirm_request">Confirm User</option>
+                <option value="deny_request">Deny Request</option>
+            `;
+        } else if (u.role === 'Denied') {
+            badgeClass = 'bg-slate-100 text-slate-500 border-slate-200';
+            displayBadge = 'Denied';
+            actionOptions = `
+                <option value="">Actions...</option>
+                <option value="confirm_request">Confirm User</option>
+            `;
+        } else {
+            if (displayBadge.startsWith('Paid')) badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-200';
+            else if (displayBadge.startsWith('Pending')) badgeClass = 'bg-amber-100 text-amber-800 border-amber-200';
+            else badgeClass = 'bg-red-100 text-red-800 border-red-200';
+            
+            actionOptions = `
+                <option value="">Actions...</option>
+                <option value="resend">Resend Invite Code</option>
+                <option disabled>──────────</option>
+                <option value="pay_Paid">Mark as Paid</option>
+                <option value="pay_Pending">Mark as Pending</option>
+                <option value="pay_Unpaid">Mark as Unpaid</option>
+            `;
+        }
 
         html += `
           <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 mb-3 flex flex-col gap-3">
@@ -1028,16 +1076,11 @@
                 <div class="font-bold text-slate-800 truncate">${u.name}</div>
                 <div class="text-xs text-slate-500 truncate">${u.email}</div>
               </div>
-              <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${badgeClass}">${displayPaid}</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${badgeClass}">${displayBadge}</span>
             </div>
             <div class="flex justify-end border-t border-slate-50 pt-2">
               <select onchange="handleAdminUserAction(this, '${u.email}')" class="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50 outline-none text-slate-600 font-medium">
-                <option value="">Actions...</option>
-                <option value="resend">Resend Invite Code</option>
-                <option disabled>──────────</option>
-                <option value="pay_Paid">Mark as Paid</option>
-                <option value="pay_Pending">Mark as Pending</option>
-                <option value="pay_Unpaid">Mark as Unpaid</option>
+                ${actionOptions}
               </select>
             </div>
           </div>
@@ -1056,6 +1099,10 @@
           if(res.success) alert("Invite resent.");
           else alert("Failed to resend invite.");
         }
+      } else if (action === 'confirm_request' || action === 'deny_request') {
+        const res = await apiCall({ action: 'admin_action', email: state.email, actionType: action, targetEmail: userEmail });
+        if(res.success) loadAdminUsers();
+        else alert("Failed to update request.");
       } else if (action.startsWith('pay_')) {
         const newStatus = action.split('_')[1];
         const res = await apiCall({ action: 'admin_action', email: state.email, actionType: 'update_payment', targetEmail: userEmail, actionValue: newStatus });
@@ -1911,6 +1958,12 @@ function renderAdminPropReview() {
           <span class="text-slate-400">→</span>
         </div>
       </button>
+
+      <!-- Request New User Button -->  
+      <button onclick="promptRequestUser()" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
+        <div class="flex items-center"><span class="text-2xl mr-3">✉️</span><span class="font-semibold text-lg text-slate-700">Request New User</span></div>
+        <span class="text-slate-400">→</span>
+      </button>
     </div>
 
     <!-- League Details View -->
@@ -2212,6 +2265,8 @@ function renderAdminPropReview() {
           <option value="Paid">Paid</option>
           <option value="Pending">Pending</option>
           <option value="Unpaid">Unpaid</option>
+          <option value="Requested">Requested</option>
+          <option value="Denied">Denied</option>
         </select>
       </div>
       <div id="admin-users-list"></div>
