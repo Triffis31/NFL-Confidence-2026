@@ -50,8 +50,7 @@
 
     /* Grid Styles for Leaderboards */
     .table-sticky-col-1 { position: sticky; left: 0; background-color: #f8fafc; z-index: 10; min-width: 100px; max-width: 100px; }
-.table-sticky-col-2 { position: sticky; left: 100px; background-color: #f8fafc; z-index: 10; min-width: 65px; max-width: 65px; border-right: 1px solid #e2e8f0;}    .table-sticky-header { position: sticky; top: 0; background-color: #f1f5f9; z-index: 20; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-    .table-sticky-intersect-1 { z-index: 30 !important; }
+.table-sticky-col-2 { position: sticky; left: 100px; background-color: #f8fafc; z-index: 10; min-width: 75px; max-width: 75px; border-right: 1px solid #e2e8f0;}    .table-sticky-intersect-1 { z-index: 30 !important; }
     .table-sticky-intersect-2 { z-index: 30 !important; }
     
     .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -856,8 +855,8 @@ function renderWeeklyLbTotal() {
                 <th class="p-3">Name</th>
                 <th class="p-3 text-center">Picks</th>
                 <th class="p-3 text-center">Props</th>
-                <th class="p-3 text-center text-slate-800 whitespace-nowrap">
-                  <div class="flex justify-center items-center gap-3">
+                <th class="p-3 text-center text-slate-800 whitespace-nowrap min-w-[80px]">
+                  <div class="grid grid-cols-2 items-center justify-items-center w-full">
                     <span>Total</span>
                     <span class="text-slate-400 text-[10px] font-normal">Poss</span>
                   </div>
@@ -876,7 +875,7 @@ function renderWeeklyLbTotal() {
             <td class="p-3 text-center text-slate-500">${u.pickPts}</td>
             <td class="p-3 text-center text-slate-500">${u.propPts}</td>
             <td class="p-3">
-              <div class="flex justify-center items-center gap-3">
+              <div class="grid grid-cols-2 items-center justify-items-center w-full">
                 <span class="font-black text-slate-800">${u.totalPts}</span>
                 <span class="text-slate-400 text-xs font-semibold">${u.possiblePts}</span>
               </div>
@@ -905,7 +904,7 @@ function renderWeeklyLbTotal() {
               <tr>
                 <th class="p-2 border-b border-slate-200 table-sticky-col-1 table-sticky-intersect-1 shadow-[1px_0_0_#e2e8f0]">Name</th>
                 <th class="p-2 border-b border-slate-200 table-sticky-col-2 table-sticky-intersect-2 text-slate-800 shadow-[1px_0_0_#e2e8f0]">
-                  <div class="flex justify-center items-center gap-2">
+                  <div class="grid grid-cols-2 items-center justify-items-center w-full">
                     <span>Total</span>
                     <span class="text-slate-400 text-[9px] font-normal">Poss</span>
                   </div>
@@ -926,7 +925,7 @@ function renderWeeklyLbTotal() {
           <tr class="hover:bg-slate-50 transition-colors">
             <td class="p-2 border-r border-slate-100 table-sticky-col-1 text-left ${isMe} ${isMeText} truncate"><span class="text-slate-400 font-bold mr-1">${u.rank}.</span> ${u.name}</td>
             <td class="p-2 table-sticky-col-2 text-slate-800 ${isMe}">
-              <div class="flex justify-center items-center gap-2">
+              <div class="grid grid-cols-2 items-center justify-items-center w-full">
                 <span class="font-black">${u.totalPts}</span>
                 <span class="text-slate-400 text-[10px] font-semibold">${u.possiblePts}</span>
               </div>
