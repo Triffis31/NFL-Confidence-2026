@@ -1868,6 +1868,13 @@ function renderAdminPropReview() {
     <!-- Home View -->
     <div id="home-view" class="view-container hidden space-y-4 mt-6">
       <h2 class="text-2xl font-bold px-1 text-slate-800">Dashboard</h2>
+  
+      <!-- League Details Button -->
+      <button onclick="attemptNavigation('league-details-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
+        <div class="flex items-center"><span class="text-2xl mr-3">📖</span><span class="font-semibold text-lg text-slate-700">League Details</span></div>
+        <span class="text-slate-400">→</span>
+      </button>
+
 
       <button onclick="attemptNavigation('social-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
         <div class="flex items-center"><span class="text-2xl mr-3">📣</span><span class="font-semibold text-lg text-slate-700">League Updates</span></div>
@@ -1898,6 +1905,47 @@ function renderAdminPropReview() {
           <span class="text-slate-400">→</span>
         </div>
       </button>
+    </div>
+
+    <!-- League Details View -->
+    <div id="league-details-view" class="view-container hidden mt-6">
+      <div class="flex items-center mb-6 px-1">
+        <button onclick="attemptNavigation('home-view', false)" class="text-slate-400 hover:text-slate-600 font-bold mr-4 text-xl">&larr;</button>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 mb-8">
+        <h2 class="text-2xl font-bold text-slate-800 text-center mb-6">NFL Confidence 2026 League Details</h2>
+        
+        <div class="text-sm text-slate-600 leading-relaxed space-y-5">
+          <p>Welcome to the 3rd annual NFL Confidence League! For those that have been around since the beginning, you know we've tried out random forms and google sheets, to sketchy Splash Sports with a slack instance no one used ha. Now we've got a dedicated app! This app will allow us to try out some fun new things we've talked about in the past, but haven't had the access to with other platforms.</p>
+          
+          <p>Upon logging into the app, make sure you fill out your Display Name, and check out My Account. There will be a spot to pay for the league either through Venmo or Zelle. There will be a notification bubble until you're marked as paid. Notify my through the app that the </p>
+          
+          <p><b><u>Weekly Rhythm</u></b><br>
+          This will look like similar, picking each team that you think will win across all games that week, then ranking them based on your confidence levels.</p>
+          
+          <p><b><u>Some new twists:</u></b><br>
+          - Featured Games: These games will be worth 2x points. The idea most of the time will be games that would usually land in the low confidence a Risk/Reward opportunity, so maybe you put them up a bit higher, or even all the way up at 16! Each week these will change, so be sure to check in and look for that bright orange marking on the game to know it's worth 2x points.<br>
+          - Prop Picks: We thought another fun way to engage everyone and a chance to drive some more variable scores is adding in some prop plays. Each week there will be 2 new prop plays. Some related to a thing happening across the league that week, or picking a certain game for an outcome. I wanted to make these pretty fun and make us pay attention for fun outcomes throughout the games each week.</p>
+          
+          <p><b><u>Leaderboards</u></b><br>
+          Just like in years past, you'll be able to see everyone's picks once the game starts. We'll also have leaderboards for Props, Featured Games, and Seasonal progression.</p>
+          
+          <p><b><u>Payout Structure</u></b><br>
+          - 1st in points - 24%<br>
+          - 2nd in points - 14%<br>
+          - 3rd in points - 9%<br>
+          - 4th in points - 5%<br>
+          - 5th in points - 2%</p>
+          
+          <p>Weekly Winner - 2%<br>
+          1st in Prop Points - 5%<br>
+          1st in Feature Game Points - 5%<br>
+          <i>*payouts will depend on number of entrants</i></p>
+          
+          <p>Good luck this season, have fun, and hop in chat or reach out if you have any questions or need any help!</p>
+        </div>
+      </div>
     </div>
 
     <!-- Weekly Picks Menu View -->
