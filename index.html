@@ -50,7 +50,9 @@
 
     /* Grid Styles for Leaderboards */
     .table-sticky-col-1 { position: sticky; left: 0; background-color: #f8fafc; z-index: 10; min-width: 100px; max-width: 100px; }
-.table-sticky-col-2 { position: sticky; left: 100px; background-color: #f8fafc; z-index: 10; min-width: 75px; max-width: 75px; border-right: 1px solid #e2e8f0;}    .table-sticky-intersect-1 { z-index: 30 !important; }
+    .table-sticky-col-2 { position: sticky; left: 100px; background-color: #f8fafc; z-index: 10; min-width: 75px; max-width: 75px; border-right: 1px solid #e2e8f0;}
+    .table-sticky-header { position: sticky; top: 0; background-color: #f1f5f9; z-index: 20; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .table-sticky-intersect-1 { z-index: 30 !important; }
     .table-sticky-intersect-2 { z-index: 30 !important; }
     
     .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -659,7 +661,6 @@
       `;
 
       rankedData.forEach(u => {
-        // Updated: Soft yellow highlight for the current user
         const isMe = u.name === state.name ? 'bg-yellow-50 font-semibold' : '';
         
         let recordStr = '';
@@ -720,7 +721,6 @@
       `;
 
       rankedData.forEach(u => {
-        // Updated: Soft yellow highlight for the current user
         const isMe = u.name === state.name ? 'bg-yellow-50 font-semibold' : '';
         html += `
           <tr class="hover:bg-slate-50 transition-colors ${isMe}">
@@ -746,7 +746,7 @@
 
       const rankedData = calculateRanks(lbDataRaw.users, 'totalPts');
 
-      // NEW: Calculate the max score for each completed week
+      // Calculate the max score for each completed week
       const weekMaxes = {};
       for(let w = 1; w <= 18; w++) {
         if (w < state.currentWeek) {
@@ -778,7 +778,6 @@
       html += `</tr></thead><tbody class="divide-y divide-slate-100">`;
 
       rankedData.forEach(u => {
-        // Updated: Soft yellow highlight for the current user
         const isMe = u.name === state.name ? 'bg-yellow-50' : '';
         const isMeText = u.name === state.name ? 'font-bold text-yellow-900' : 'font-semibold text-slate-800';
         
@@ -793,20 +792,13 @@
           
           let cellClass = "text-slate-600";
           
-          // NEW: Check if the score matches the weekly winner max score
+          // Check if the score matches the weekly winner max score
           if (w < state.currentWeek && rawScore !== '-' && Number(rawScore) === weekMaxes[w] && Number(rawScore) > 0) {
             cellClass = "bg-emerald-100 text-emerald-900 font-bold shadow-sm"; 
           }
           
           html += `<td class="p-2 ${cellClass}">${rawScore}</td>`;
         }
-        
-        html += `</tr>`;
-      });
-
-      html += `</tbody></table></div>`;
-      container.innerHTML = html;
-    }
         
         html += `</tr>`;
       });
@@ -822,7 +814,7 @@
       loadWeeklyLeaderboard('Total'); 
     }
 
-async function loadWeeklyLeaderboard(tab = 'Total') {
+    async function loadWeeklyLeaderboard(tab = 'Total') {
       document.getElementById('weekly-leaderboard-container').innerHTML = '<div class="py-8 text-center text-slate-400">Loading data...</div>';
       
       const res = await apiCall({ action: 'get_weekly_leaderboard', email: state.email, week: state.viewedWeek });
@@ -831,7 +823,6 @@ async function loadWeeklyLeaderboard(tab = 'Total') {
         weeklyLbData.games = res.games || [];
         weeklyLbData.picks = res.picks || [];
 
-        // Note: possiblePts is now passed directly from the backend inside res.ranks
         renderWeeklyLeaderboard(tab);
       } else {
         document.getElementById('weekly-leaderboard-container').innerHTML = '<div class="py-8 text-center text-red-400">Failed to load weekly data.</div>';
@@ -883,7 +874,6 @@ async function loadWeeklyLeaderboard(tab = 'Total') {
       `;
 
       rankedData.forEach(u => {
-        // Updated: Soft yellow highlight for the current user
         const isMe = u.name === state.name ? 'bg-yellow-50 font-semibold' : '';
         html += `
           <tr class="hover:bg-slate-50 transition-colors ${isMe}">
@@ -935,8 +925,7 @@ async function loadWeeklyLeaderboard(tab = 'Total') {
       html += `</tr></thead><tbody class="divide-y divide-slate-100">`;
 
       rankedData.forEach(u => {
-        // Updated: Soft yellow highlight for the current user
-        const isMe = u.name === state.name ? 'bg-yellow-50' : '';
+        const isMe = u.name === state.name ? 'bg-yellow-50' : 'bg-white';
         const isMeText = u.name === state.name ? 'font-bold text-yellow-900' : 'font-semibold text-slate-800';
         
         html += `
@@ -1797,7 +1786,7 @@ function renderAdminPropReview() {
         }
 
         html += `
-<div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-4">
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-4">
             <div class="flex justify-between items-start mb-1 gap-2">
               <h3 class="font-bold text-slate-800 text-lg leading-tight flex items-center">
                 ${prop.title}
@@ -1979,7 +1968,7 @@ function renderAdminPropReview() {
     <div id="home-view" class="view-container hidden space-y-4 mt-6">
       <div class="flex justify-center items-center pb-2">
         <!-- Replace 'icon.png' with the actual filename of your logo -->
-        <img src="icon2.png" alt="NFL Confidence League Logo" class="h-20 w-auto object-contain drop-shadow-sm">
+        <img src="icon.png" alt="NFL Confidence League Logo" class="h-20 w-auto object-contain drop-shadow-sm">
       </div>
       
       <!-- Weekly Picks Button -->
@@ -2022,9 +2011,9 @@ function renderAdminPropReview() {
         </div>
       </button>
 
-      <!-- Invite a Friend Button -->  
+      <!-- Request New User Button -->  
       <button onclick="promptRequestUser()" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
-        <div class="flex items-center"><span class="text-2xl mr-3">✉️</span><span class="font-semibold text-lg text-slate-700">Invite a Friend</span></div>
+        <div class="flex items-center"><span class="text-2xl mr-3">✉️</span><span class="font-semibold text-lg text-slate-700">Request New User</span></div>
         <span class="text-slate-400">→</span>
       </button>
     </div>
@@ -2048,7 +2037,7 @@ function renderAdminPropReview() {
           
           <p><b>Some new twists:</b><br>
           <u>Featured Games</u><br>
-          These games will be worth <b>2x points</b>. The idea most of the time will be to give games that would usually land in the low confidence a Risk/Reward opportunity, so maybe you put them up a bit higher, or even all the way up at 16! We'll mix in some fun international/holiday games as well. Each week these will change, so be sure to check in and look for that bright orange marking on the game to know it's worth 2x points.<br><br>
+          These games will be worth <b>2x points</b>. The idea most of the time will be to give games that would usually land in the low confidence a Risk/Reward opportunity, so maybe you put them up a bit higher, or even all the way up at 16! Each week these will change, so be sure to check in and look for that bright orange marking on the game to know it's worth 2x points.<br><br>
            
           <u>Prop Picks</u><br>
           We thought another fun way to engage everyone and a chance to drive some more variable scores is adding in some prop plays. Each week there will be 2 new prop plays. Some related to a thing happening across the league that week, or picking a certain game for an outcome. I wanted to make these pretty fun and make us pay attention for fun outcomes throughout the games each week.</p>
