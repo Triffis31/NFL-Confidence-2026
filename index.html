@@ -1779,13 +1779,20 @@ function renderAdminPropReview() {
         }
 
         html += `
-          <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-4">
-            <div class="flex justify-between items-start mb-1">
+<div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-4">
+            <div class="flex justify-between items-start mb-1 gap-2">
               <h3 class="font-bold text-slate-800 text-lg leading-tight flex items-center">
                 ${prop.title}
                 ${isLocked ? '<span class="ml-2 text-base">🔒</span>' : ''}
               </h3>
+              
+              <!-- Added: Prop Lock Date and Time -->
+              <div class="flex flex-col items-end shrink-0 pt-0.5">
+                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">${prop.lockDate || ''}</span>
+                <span class="text-[10px] font-semibold text-slate-500">${prop.lockTime || ''}</span>
+              </div>
             </div>
+            
             <p class="text-sm text-slate-500 mb-4 leading-snug">${prop.description}</p>
             ${inputHtml}
             <div class="mt-4 bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600 flex justify-between items-center">
@@ -2375,6 +2382,15 @@ function renderAdminPropReview() {
           <div class="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">▼</div>
         </div>
         <span id="prop-save-status-badge" class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">All Saved</span>
+      </div>
+
+      <!-- NEW PROPS EXPLANATION BOX -->
+      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm mb-5 text-[11px] text-slate-500 leading-relaxed px-4">
+        <ul class="list-disc pl-3 space-y-1">
+          <li>Each week new prop picks will be live. These props will award 5 bonus points each.</li>
+          <li>Please note the lock times for each prop. If it's for a specific game, it'll lock for that game (ie SNF, MNF). If it's a something that can happen across all games for the week, it'll lock before the 1st game of the week.</li>
+          <li>Locks times are shown on each prop for help</li>
+        </ul>
       </div>
 
       <div id="props-list" class="mb-4"></div>
