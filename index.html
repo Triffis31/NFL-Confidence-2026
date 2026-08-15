@@ -618,11 +618,70 @@
     }
 
     async function fetchLeaderboardData() {
+      // Set temporary loading states while fetching
+      ['rank-badge-season', 'rank-badge-weekly', 'rank-badge-prop', 'rank-badge-featured'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = '...';
+      });
+
       const res = await apiCall({ action: 'get_leaderboards' });
       if (res && res.success) {
         lbDataRaw.users = res.users || [];
         lbDataRaw.weekly = res.weekly || {};
+        updateLeaderboardMenuRanks();
       }
+    }
+
+    function updateLeaderboardMenuRanks() {
+      if (!lbDataRaw.users || lbDataRaw.users.length === 0) return;
+
+      // Helper function to calculate rank, ordinal suffix, and tie status
+      function getRankStr(array, key) {
+        let sorted = [...array].sort((a, b) => b[key] - a[key]);
+        let rank = 1;
+        for (let i = 0; i < sorted.length; i++) {
+          if (i > 0 && sorted[i][key] < sorted[i - 1][key]) {
+            rank = i + 1;
+          }
+          sorted[i].tempRank = rank;
+        }
+        
+        const userObj = sorted.find(u => u.name === state.name);
+        if (!userObj) return "-";
+        
+        const userRank = userObj.tempRank;
+        const tiedUsers = sorted.filter(u => u.tempRank === userRank);
+
+        // Determine ordinal suffix (st, nd, rd, th)
+        const s = ["th", "st", "nd", "rd"];
+        const v = userRank % 100;
+        let ordinal = userRank + (s[(v - 20) % 10] || s[v] || s[0]);
+        
+        if (tiedUsers.length > 1) {
+          return ordinal + " (tie)";
+        }
+        return ordinal;
+      }
+
+      // Update Season Rank
+      document.getElementById('rank-badge-season').innerText = getRankStr(lbDataRaw.users, 'totalPts');
+      
+      // Update Prop Rank
+      document.getElementById('rank-badge-prop').innerText = getRankStr(lbDataRaw.users, 'dynamicPropPts');
+      
+      // Update Featured Rank
+      document.getElementById('rank-badge-featured').innerText = getRankStr(lbDataRaw.users, 'featPts');
+
+      // Update Current Week Rank
+      let weeklyArray = [];
+      lbDataRaw.users.forEach(u => {
+        let wScore = 0;
+        if (lbDataRaw.weekly[u.name] && lbDataRaw.weekly[u.name][state.currentWeek]) {
+          wScore = lbDataRaw.weekly[u.name][state.currentWeek];
+        }
+        weeklyArray.push({ name: u.name, weekScore: wScore });
+      });
+      document.getElementById('rank-badge-weekly').innerText = getRankStr(weeklyArray, 'weekScore');
     }
 
     async function loadSubLeaderboard(key, containerId) {
@@ -2091,20 +2150,32 @@ function renderAdminPropReview() {
       <h2 class="text-2xl font-bold px-1 mb-4 text-slate-800">Leaderboards</h2>
       <div class="space-y-4">
         <button onclick="attemptNavigation('season-leaderboard-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
-          <div class="flex items-center"><span class="text-2xl mr-3">🏈</span><span class="font-semibold text-lg text-slate-700">Season Leaderboard</span></div>
-          <span class="text-slate-400">→</span>
+          <div class="flex items-center"><span class="text-2xl mr-3">🏈</span><span class="font-semibold text-base text-slate-700">Season Leaderboard</span></div>
+          <div class="flex items-center">
+            <span id="rank-badge-season" class="text-xs font-bold text-slate-400 mr-2"></span>
+            <span class="text-slate-400">→</span>
+          </div>
         </button>
         <button onclick="attemptNavigation('weekly-leaderboard-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
-          <div class="flex items-center"><span class="text-2xl mr-3">📅</span><span class="font-semibold text-lg text-slate-700">Weekly Leaderboard</span></div>
-          <span class="text-slate-400">→</span>
+          <div class="flex items-center"><span class="text-2xl mr-3">📅</span><span class="font-semibold text-base text-slate-700">Weekly Leaderboard</span></div>
+          <div class="flex items-center">
+            <span id="rank-badge-weekly" class="text-xs font-bold text-slate-400 mr-2"></span>
+            <span class="text-slate-400">→</span>
+          </div>
         </button>
         <button onclick="attemptNavigation('prop-leaderboard-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
-          <div class="flex items-center"><span class="text-2xl mr-3">🎯</span><span class="font-semibold text-lg text-slate-700">Prop Leaderboard</span></div>
-          <span class="text-slate-400">→</span>
+          <div class="flex items-center"><span class="text-2xl mr-3">🎯</span><span class="font-semibold text-base text-slate-700">Prop Leaderboard</span></div>
+          <div class="flex items-center">
+            <span id="rank-badge-prop" class="text-xs font-bold text-slate-400 mr-2"></span>
+            <span class="text-slate-400">→</span>
+          </div>
         </button>
         <button onclick="attemptNavigation('featured-leaderboard-view')" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
-          <div class="flex items-center"><span class="text-2xl mr-3">🔥</span><span class="font-semibold text-lg text-slate-700">Featured Leaderboard</span></div>
-          <span class="text-slate-400">→</span>
+          <div class="flex items-center"><span class="text-2xl mr-3">🔥</span><span class="font-semibold text-base text-slate-700">Featured Leaderboard</span></div>
+          <div class="flex items-center">
+            <span id="rank-badge-featured" class="text-xs font-bold text-slate-400 mr-2"></span>
+            <span class="text-slate-400">→</span>
+          </div>
         </button>
       </div>
     </div>
