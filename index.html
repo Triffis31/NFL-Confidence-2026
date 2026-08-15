@@ -788,7 +788,7 @@
       loadWeeklyLeaderboard('Total'); 
     }
 
-  async function loadWeeklyLeaderboard(tab = 'Total') {
+async function loadWeeklyLeaderboard(tab = 'Total') {
       document.getElementById('weekly-leaderboard-container').innerHTML = '<div class="py-8 text-center text-slate-400">Loading data...</div>';
       
       const res = await apiCall({ action: 'get_weekly_leaderboard', email: state.email, week: state.viewedWeek });
@@ -797,25 +797,7 @@
         weeklyLbData.games = res.games || [];
         weeklyLbData.picks = res.picks || [];
 
-        // Calculate Possible Points
-        weeklyLbData.ranks.forEach(u => {
-          let maxAdditional = 0;
-          weeklyLbData.picks.forEach(pick => {
-            if (pick.user === u.name) {
-              let game = weeklyLbData.games.find(g => g.id === pick.game);
-              if (game && pick.choice) {
-                // If the game isn't officially over, those points are still 'possible'
-                let isFinal = game.status === 'Final' || game.status === 'STATUS_FINAL';
-                if (!isFinal) {
-                  let mult = game.featured ? 2 : 1;
-                  maxAdditional += (Number(pick.confidence) * mult);
-                }
-              }
-            }
-          });
-          u.possiblePts = u.totalPts + maxAdditional;
-        });
-
+        // Note: possiblePts is now passed directly from the backend inside res.ranks
         renderWeeklyLeaderboard(tab);
       } else {
         document.getElementById('weekly-leaderboard-container').innerHTML = '<div class="py-8 text-center text-red-400">Failed to load weekly data.</div>';
