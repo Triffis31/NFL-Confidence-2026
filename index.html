@@ -659,7 +659,8 @@
       `;
 
       rankedData.forEach(u => {
-        const isMe = u.name === state.name ? 'bg-blue-50/50 font-semibold' : '';
+        // Updated: Soft yellow highlight for the current user
+        const isMe = u.name === state.name ? 'bg-yellow-50 font-semibold' : '';
         
         let recordStr = '';
         if (key === 'featPts') recordStr = `${u.featCorrect}/${u.featCompleted}`;
@@ -719,7 +720,8 @@
       `;
 
       rankedData.forEach(u => {
-        const isMe = u.name === state.name ? 'bg-blue-50/50 font-semibold' : '';
+        // Updated: Soft yellow highlight for the current user
+        const isMe = u.name === state.name ? 'bg-yellow-50 font-semibold' : '';
         html += `
           <tr class="hover:bg-slate-50 transition-colors ${isMe}">
             <td class="p-3 text-center font-bold text-slate-400">${u.rank}</td>
@@ -744,6 +746,22 @@
 
       const rankedData = calculateRanks(lbDataRaw.users, 'totalPts');
 
+      // NEW: Calculate the max score for each completed week
+      const weekMaxes = {};
+      for(let w = 1; w <= 18; w++) {
+        if (w < state.currentWeek) {
+          let max = -1;
+          rankedData.forEach(u => {
+            let rawScore = (lbDataRaw.weekly[u.name] && lbDataRaw.weekly[u.name][w] !== undefined) ? lbDataRaw.weekly[u.name][w] : '-';
+            if (rawScore !== '-') {
+              let score = Number(rawScore);
+              if (score > max) max = score;
+            }
+          });
+          weekMaxes[w] = max;
+        }
+      }
+
       let html = `
         <div class="overflow-x-auto h-[60vh] border border-slate-200 rounded-xl relative shadow-sm bg-white custom-scrollbar">
           <table class="w-full text-[10px] text-center border-collapse">
@@ -760,19 +778,35 @@
       html += `</tr></thead><tbody class="divide-y divide-slate-100">`;
 
       rankedData.forEach(u => {
-        const isMe = u.name === state.name ? 'bg-blue-50/50' : 'bg-white';
-        const isMeText = u.name === state.name ? 'font-bold text-blue-900' : 'font-semibold text-slate-800';
+        // Updated: Soft yellow highlight for the current user
+        const isMe = u.name === state.name ? 'bg-yellow-50' : '';
+        const isMeText = u.name === state.name ? 'font-bold text-yellow-900' : 'font-semibold text-slate-800';
         
         html += `
-          <tr class="hover:bg-slate-50 transition-colors">
+          <tr class="hover:bg-slate-50 transition-colors ${isMe}">
             <td class="p-2 border-r border-slate-100 table-sticky-col-1 text-left ${isMe} ${isMeText} truncate"><span class="text-slate-400 font-bold mr-1">${u.rank}.</span> ${u.name}</td>
             <td class="p-2 table-sticky-col-2 font-black text-slate-800 ${isMe}">${u.totalPts}</td>
         `;
 
         for(let w = 1; w <= 18; w++) {
-          const weekScore = (lbDataRaw.weekly[u.name] && lbDataRaw.weekly[u.name][w]) ? lbDataRaw.weekly[u.name][w] : '-';
-          html += `<td class="p-2 text-slate-600">${weekScore}</td>`;
+          const rawScore = (lbDataRaw.weekly[u.name] && lbDataRaw.weekly[u.name][w] !== undefined) ? lbDataRaw.weekly[u.name][w] : '-';
+          
+          let cellClass = "text-slate-600";
+          
+          // NEW: Check if the score matches the weekly winner max score
+          if (w < state.currentWeek && rawScore !== '-' && Number(rawScore) === weekMaxes[w] && Number(rawScore) > 0) {
+            cellClass = "bg-emerald-100 text-emerald-900 font-bold shadow-sm"; 
+          }
+          
+          html += `<td class="p-2 ${cellClass}">${rawScore}</td>`;
         }
+        
+        html += `</tr>`;
+      });
+
+      html += `</tbody></table></div>`;
+      container.innerHTML = html;
+    }
         
         html += `</tr>`;
       });
@@ -819,7 +853,7 @@ async function loadWeeklyLeaderboard(tab = 'Total') {
       }
     }
 
-function renderWeeklyLbTotal() {
+    function renderWeeklyLbTotal() {
       const container = document.getElementById('weekly-leaderboard-container');
       if (weeklyLbData.ranks.length === 0) {
         container.innerHTML = '<div class="p-6 text-center text-slate-400">No data available for this week.</div>';
@@ -849,7 +883,8 @@ function renderWeeklyLbTotal() {
       `;
 
       rankedData.forEach(u => {
-        const isMe = u.name === state.name ? 'bg-blue-50/50 font-semibold' : '';
+        // Updated: Soft yellow highlight for the current user
+        const isMe = u.name === state.name ? 'bg-yellow-50 font-semibold' : '';
         html += `
           <tr class="hover:bg-slate-50 transition-colors ${isMe}">
             <td class="p-3 text-center font-bold text-slate-400">${u.rank}</td>
@@ -900,11 +935,12 @@ function renderWeeklyLbTotal() {
       html += `</tr></thead><tbody class="divide-y divide-slate-100">`;
 
       rankedData.forEach(u => {
-        const isMe = u.name === state.name ? 'bg-blue-50/50' : 'bg-white';
-        const isMeText = u.name === state.name ? 'font-bold text-blue-900' : 'font-semibold text-slate-800';
+        // Updated: Soft yellow highlight for the current user
+        const isMe = u.name === state.name ? 'bg-yellow-50' : '';
+        const isMeText = u.name === state.name ? 'font-bold text-yellow-900' : 'font-semibold text-slate-800';
         
         html += `
-          <tr class="hover:bg-slate-50 transition-colors">
+          <tr class="hover:bg-slate-50 transition-colors ${isMe}">
             <td class="p-2 border-r border-slate-100 table-sticky-col-1 text-left ${isMe} ${isMeText} truncate"><span class="text-slate-400 font-bold mr-1">${u.rank}.</span> ${u.name}</td>
             <td class="p-2 table-sticky-col-2 text-slate-800 ${isMe}">
               <div class="grid grid-cols-2 items-center justify-items-center w-full">
