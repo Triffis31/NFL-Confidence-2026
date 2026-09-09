@@ -37,7 +37,7 @@
     
     .sortable-ghost { opacity: 0.3; }
     .sortable-drag { box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15); cursor: grabbing !important; }
-    .drag-handle { cursor: grab; }
+    .drag-handle { cursor: grab; touch-action: none; } /* Added touch-action: none */
     .drag-handle:active { cursor: grabbing; }
 
     /* Custom Fire Effects */
@@ -1606,6 +1606,8 @@ function renderPicksList() {
         ghostClass: 'sortable-ghost',
         dragClass: 'sortable-drag',
         filter: '.locked-game', 
+        forceFallback: true,    // Bypasses native iOS drag-and-drop bugs
+        fallbackTolerance: 3,   // Gives a 3px buffer so taps aren't mistaken for drags
         onMove: function (evt) {
           return !evt.related.classList.contains('locked-game');
         },
