@@ -1,4 +1,4 @@
-const CACHE_NAME = 'NFL26-v62 -FINAL';
+const CACHE_NAME = 'NFL26-v63 -FINAL';
 const ASSETS = [
   './',
   './index.html',
