@@ -1570,7 +1570,7 @@ function renderPicksList() {
               </div>
               
               <div class="flex-1 flex items-stretch bg-white rounded-tr-xl border border-slate-200 overflow-hidden relative">
-                <button onclick="selectTeam(this, '${game.id}', '${game.away}', ${isLocked})" class="team-btn away-btn flex-1 flex items-center justify-start px-3 border-2 ${awayStyle} transition-colors ${isLocked ? 'cursor-default' : 'active:bg-slate-50'}">
+                <button onclick="selectTeam(this, '${game.id}', '${game.away}', ${isLocked})" class="team-btn away-btn flex-1 flex items-center justify-start px-3 border-2 ${awayStyle} transition-colors ${isLocked ? 'cursor-default' : 'cursor-pointer active:bg-slate-50'}">
                   ${game.awayLogo ? `<img src="${game.awayLogo}" class="w-7 h-7 object-contain mr-2">` : ''}
                   <span class="font-bold tracking-tight text-sm sm:text-base">${game.away}</span>
                 </button>
@@ -1582,7 +1582,7 @@ function renderPicksList() {
                   <span class="text-[8px] ${bottomTextClass} font-medium whitespace-nowrap px-1 uppercase tracking-wider pb-1">${game.dateString}</span>
                 </div>
 
-                <button onclick="selectTeam(this, '${game.id}', '${game.home}', ${isLocked})" class="team-btn home-btn flex-1 flex items-center justify-end px-3 border-2 ${homeStyle} transition-colors ${isLocked ? 'cursor-default' : 'active:bg-slate-50'}">
+                <button onclick="selectTeam(this, '${game.id}', '${game.home}', ${isLocked})" class="team-btn home-btn flex-1 flex items-center justify-end px-3 border-2 ${homeStyle} transition-colors ${isLocked ? 'cursor-default' : 'cursor-pointer active:bg-slate-50'}">
                   <span class="font-bold tracking-tight text-sm sm:text-base">${game.home}</span>
                   ${game.homeLogo ? `<img src="${game.homeLogo}" class="w-7 h-7 object-contain ml-2">` : ''}
                 </button>
@@ -1605,9 +1605,10 @@ function renderPicksList() {
         animation: 200,
         ghostClass: 'sortable-ghost',
         dragClass: 'sortable-drag',
-        filter: '.locked-game', 
-        forceFallback: true,    // Bypasses native iOS drag-and-drop bugs
-        fallbackTolerance: 3,   // Gives a 3px buffer so taps aren't mistaken for drags
+        filter: '.locked-game, .team-btn', // Added .team-btn to the ignore list
+        preventOnFilter: false,            // Forces Sortable to allow the tap to go through
+        forceFallback: true,    
+        fallbackTolerance: 3,   
         onMove: function (evt) {
           return !evt.related.classList.contains('locked-game');
         },
