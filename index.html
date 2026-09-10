@@ -1397,44 +1397,54 @@
     }
 
 function renderAdminPropReview() {
-      const container = document.getElementById('admin-prop-list');
-      if (adminPropData.props.length === 0) {
-        container.innerHTML = `<div class="p-8 text-center text-slate-400 bg-white/90 backdrop-blur-sm rounded-xl border border-dashed border-slate-300">No props found for Week ${adminViewedWeek}</div>`;
-        return;
-      }
+  const container = document.getElementById('admin-prop-list');
+  if (adminPropData.props.length === 0) {
+    container.innerHTML = `<div class="p-8 text-center text-slate-400 bg-white/90 backdrop-blur-sm rounded-xl border border-dashed border-slate-300">No props found for Week ${adminViewedWeek}</div>`;
+    return;
+  }
 
-      let html = '';
-      adminPropData.props.forEach((prop, index) => {
-        html += `
-          <div class="bg-white/90 backdrop-blur-sm p-5 rounded-2xl shadow-sm border border-slate-100">
-             <h3 class="font-bold text-slate-800 leading-tight mb-2">${prop.title}</h3>
-             
-             <!-- Added: Prop Description -->
-             <p class="text-sm text-slate-500 mb-3 leading-snug">${prop.description}</p>
-             
-             <div class="bg-slate-50 rounded-lg p-3 mb-4 border border-slate-100 text-sm">
-               <div class="flex justify-between border-b border-slate-200 pb-2 mb-2">
-                 <span class="text-slate-500 font-bold">Outcome:</span>
-                 <span class="font-black text-slate-800">${prop.outcome || 'TBD'}</span>
-               </div>
-               <div class="text-xs text-slate-600 italic">
-                 ${prop.summary || 'No auto-detected summary available.'}
-               </div>
-             </div>
-             
-             <div class="flex items-center gap-3">
-               <select id="prop-status-${index}" class="flex-1 bg-white/90 backdrop-blur-sm border border-slate-300 text-slate-800 font-bold rounded-xl px-3 py-2.5 outline-none text-sm">
-                 <option value="TBD" ${prop.status === 'TBD' ? 'selected' : ''}>TBD</option>
-                 <option value="Auto-Detected" ${prop.status === 'Auto-Detected' ? 'selected' : ''}>Auto-Detected</option>
-                 <option value="Confirmed" ${prop.status === 'Confirmed' ? 'selected' : ''}>Confirmed</option>
-               </select>
-               <button onclick="saveAdminPropStatus('${prop.title}', ${index})" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-sm">Save</button>
-             </div>
-          </div>
-        `;
-      });
-      container.innerHTML = html;
-    }
+  let html = '';
+  adminPropData.props.forEach((prop, index) => {
+    html += `
+      <div class="bg-white/90 backdrop-blur-sm p-5 rounded-2xl shadow-sm border border-slate-100">
+         <h3 class="font-bold text-slate-800 leading-tight mb-2">${prop.title}</h3>
+         
+         <!-- Prop Description -->
+         <p class="text-sm text-slate-500 mb-3 leading-snug">${prop.description}</p>
+         
+         <div class="bg-slate-50 rounded-lg p-3 mb-4 border border-slate-100 text-sm">
+           <div class="flex justify-between border-b border-slate-200 pb-2 mb-2">
+             <span class="text-slate-500 font-bold">Outcome:</span>
+             <span class="font-black text-slate-800">${prop.outcome || 'TBD'}</span>
+           </div>
+           <div class="text-xs text-slate-600 italic">
+             ${prop.summary || 'No auto-detected summary available.'}
+           </div>
+         </div>
+         
+         <!-- Standard Review/Confirm UI -->
+         <div class="flex items-center gap-3">
+           <select id="prop-status-${index}" class="flex-1 bg-white/90 backdrop-blur-sm border border-slate-300 text-slate-800 font-bold rounded-xl px-3 py-2.5 outline-none text-sm">
+             <option value="TBD" ${prop.status === 'TBD' ? 'selected' : ''}>TBD</option>
+             <option value="Auto-Detected" ${prop.status === 'Auto-Detected' ? 'selected' : ''}>Auto-Detected</option>
+             <option value="Confirmed" ${prop.status === 'Confirmed' ? 'selected' : ''}>Confirmed</option>
+           </select>
+           <button onclick="saveAdminPropStatus('${prop.title}', ${index})" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-sm">Save</button>
+         </div>
+
+         <!-- NEW: Manual Override UI -->
+         <div class="mt-4 pt-4 border-t border-slate-200">
+           <label class="text-[10px] font-bold text-slate-400 mb-2 block uppercase tracking-wider">Manual Admin Override</label>
+           <div class="flex items-center gap-3">
+             <input type="text" id="prop-override-${index}" placeholder="e.g. Yes, No, CHI, None" class="flex-1 bg-white/90 backdrop-blur-sm border border-slate-300 text-slate-800 font-bold rounded-xl px-3 py-2.5 outline-none text-sm">
+             <button id="override-btn-${index}" onclick="submitAdminOverride('${prop.title}', ${index})" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2.5 px-5 rounded-xl transition shadow-sm text-sm">Override</button>
+           </div>
+         </div>
+      </div>
+    `;
+  });
+  container.innerHTML = html;
+}
 
     async function saveAdminPropStatus(title, index) {
       const status = document.getElementById(`prop-status-${index}`).value;
@@ -1453,6 +1463,42 @@ function renderAdminPropReview() {
         alert(res.message || 'Failed to update status.');
       }
     }
+
+    async function submitAdminOverride(title, index) {
+  const outcomeInput = document.getElementById(`prop-override-${index}`);
+  const outcomeValue = outcomeInput.value.trim();
+  const btn = document.getElementById(`override-btn-${index}`);
+
+  if (!outcomeValue) {
+    alert("Please enter an outcome (e.g., Yes, No, CHI, None) before overriding.");
+    return;
+  }
+
+  // Update button state while waiting for the server
+  btn.innerText = 'Saving...';
+  btn.disabled = true;
+  btn.classList.add('opacity-50');
+
+  const res = await apiCall({
+    action: 'admin_override_prop',
+    email: state.email,
+    week: adminViewedWeek,
+    propTitle: title,
+    outcome: outcomeValue
+  });
+
+  // Reset button state
+  btn.innerText = 'Override';
+  btn.disabled = false;
+  btn.classList.remove('opacity-50');
+
+  if (res && res.success) {
+    alert(`Success! "${title}" has been manually overridden to: ${outcomeValue}`);
+    loadAdminPropReview(); // Automatically refresh the UI to show the new Confirmed status
+  } else {
+    alert(res.message || "Failed to save manual override.");
+  }
+}
 
     // --- PICKS & CONFIDENCE LOGIC --- //
 
