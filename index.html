@@ -1619,25 +1619,42 @@ function renderPicksList() {
       });
     }
 
-    function selectTeam(buttonEl, gameId, selectedTeam, isLocked) {
-      if (isLocked) return; 
+    function selectTeam(btn, gameId, teamName, isLocked) {
+  if (isLocked) return;
 
-      const row = buttonEl.closest('.pick-row');
-      const awayBtn = row.querySelector('.away-btn');
-      const homeBtn = row.querySelector('.home-btn');
+  // 1. Update the state (toggle selection)
+  if (userPicks[gameId] === teamName) {
+    delete userPicks[gameId]; 
+  } else {
+    userPicks[gameId] = teamName; 
+  }
 
-      if (userPicks[gameId] === selectedTeam) {
-        userPicks[gameId] = '';
-        buttonEl.className = buttonEl.className.replace('border-blue-500 bg-blue-50 text-blue-900', 'border-transparent bg-white/90 backdrop-blur-sm');
-      } else {
-        userPicks[gameId] = selectedTeam;
-        awayBtn.className = awayBtn.className.replace('border-blue-500 bg-blue-50 text-blue-900', 'border-transparent bg-white/90 backdrop-blur-sm');
-        homeBtn.className = homeBtn.className.replace('border-blue-500 bg-blue-50 text-blue-900', 'border-transparent bg-white/90 backdrop-blur-sm');
-        buttonEl.className = buttonEl.className.replace('border-transparent bg-white/90 backdrop-blur-sm', 'border-blue-500 bg-blue-50 text-blue-900');
-      }
-      
-      markUnsaved('picks');
+  // 2. Trigger the unsaved changes warning
+  markUnsaved('picks');
+
+  // 3. Update the UI classes manually
+  const container = btn.parentElement;
+  const awayBtn = container.querySelector('.away-btn');
+  const homeBtn = container.querySelector('.home-btn');
+
+  // The exact active and default classes from the new redesign
+  const activeClasses = ['border-blue-500', 'bg-blue-50', 'text-blue-900'];
+  const defaultClasses = ['border-transparent', 'bg-white'];
+
+  // Reset both buttons to their default unselected state
+  [awayBtn, homeBtn].forEach(button => {
+    if (button) {
+      button.classList.remove(...activeClasses);
+      button.classList.add(...defaultClasses);
     }
+  });
+
+  // Apply the active highlight if a team is currently selected
+  if (userPicks[gameId]) {
+    btn.classList.remove(...defaultClasses);
+    btn.classList.add(...activeClasses);
+  }
+}
 
     function updateConfidenceNumbers() {
       const rows = document.querySelectorAll('#picks-list .pick-row');
