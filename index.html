@@ -1008,7 +1008,7 @@
           if (!game.locked) {
             html += `<td class="p-2 border-l border-slate-50 min-w-[70px]"><span class="text-[10px] text-slate-300 flex items-center justify-center gap-1">🔒<span class="hidden sm:inline">Hidden</span></span></td>`;
           } else {
-            const pick = weeklyLbData.picks.find(p => p.user === u.name && p.game === game.id);
+            const pick = weeklyLbData.picks.find(p => p.email === u.email && p.game === game.id);
             if (pick && pick.choice) {
               const logo = pick.choice === game.home ? game.homeLogo : (pick.choice === game.away ? game.awayLogo : '');
               const logoImg = logo ? `<img src="${logo}" class="w-3 h-3 object-contain">` : '';
