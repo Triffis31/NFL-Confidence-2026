@@ -1545,6 +1545,31 @@ function renderAdminPropReview() {
       }
     }
 
+
+function formatGameDisplay(status, clockText) {
+      if (!clockText) clockText = '';
+      const statusUpper = String(status).toUpperCase();
+      const clockUpper = String(clockText).toUpperCase();
+
+      // 1. FINAL: Force finished games to just say FINAL
+      if (statusUpper.includes('FINAL')) {
+        return 'FINAL';
+      }
+
+      // 2. HALFTIME: Catch halftime statuses
+      if (statusUpper.includes('HALFTIME') || clockUpper.includes('HALF') || clockUpper === 'H') {
+        return 'HALFTIME';
+      }
+
+      // 3. OVERTIME: Replace the weird "5 - " with "OT - "
+      if (clockUpper.startsWith('5 -')) {
+        return clockUpper.replace('5 -', 'OT -');
+      }
+
+      // 4. ACTIVE GAME: Return the normal clock string (e.g., "Q3 - 11:14")
+      return clockText;
+    }
+
 function renderPicksList() {
       const container = document.getElementById('picks-list');
       if (currentWeekGames.length === 0) {
@@ -1584,9 +1609,13 @@ function renderPicksList() {
 
         let tickerDisplay = `<span class="text-slate-400 font-medium tracking-widest uppercase text-center w-full">Scheduled</span>`;
         if (game.status === 'STATUS_IN_PROGRESS' || game.status === 'STATUS_FINAL' || game.status === 'Live' || game.status === 'Final') {
+          
+          // Format the clock text using our new helper function
+          const displayClock = formatGameDisplay(game.status, game.clock);
+          
           tickerDisplay = `
             <span class="font-bold text-slate-300 w-12 text-left">${game.away} <span class="${game.winner===game.away?'text-white':''}">${game.awayScore}</span></span>
-            <span class="font-bold text-amber-400 text-[9px] uppercase tracking-wider">${game.clock}</span>
+            <span class="font-bold text-amber-400 text-[9px] uppercase tracking-wider">${displayClock}</span>
             <span class="font-bold text-slate-300 w-12 text-right"><span class="${game.winner===game.home?'text-white':''}">${game.homeScore}</span> ${game.home}</span>
           `;
         }
