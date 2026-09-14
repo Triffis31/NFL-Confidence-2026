@@ -703,48 +703,52 @@
     }
 
     function renderSubLeaderboard(key, containerId) {
-      const container = document.getElementById(containerId);
-      if (lbDataRaw.users.length === 0) {
-        container.innerHTML = '<div class="p-6 text-center text-slate-400">No data available.</div>';
-        return;
-      }
+  const container = document.getElementById(containerId);
+  
+  // Filter out users who haven't set a display name (where name defaults to email)
+  const validUsers = lbDataRaw.users.filter(u => u.name !== u.email);
 
-      const rankedData = calculateRanks(lbDataRaw.users, key);
+  if (validUsers.length === 0) {
+    container.innerHTML = '<div class="p-6 text-center text-slate-400">No data available.</div>';
+    return;
+  }
 
-      let html = `
-        <div class="bg-white/90 backdrop-blur-sm rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <table class="w-full text-left text-sm">
-            <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold sticky top-0">
-              <tr>
-                <th class="p-3 w-12 text-center">Rank</th>
-                <th class="p-3">Name</th>
-                <th class="p-3 text-center">Record</th>
-                <th class="p-3 text-right">Points</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-      `;
+  const rankedData = calculateRanks(validUsers, key);
 
-      rankedData.forEach(u => {
-        const isMe = u.name === state.name ? 'bg-yellow-50 font-semibold' : '';
-        
-        let recordStr = '';
-        if (key === 'featPts') recordStr = `${u.featCorrect}/${u.featCompleted}`;
-        if (key === 'dynamicPropPts') recordStr = `${u.propCorrect}/${u.propCompleted}`;
-
-        html += `
-          <tr class="hover:bg-slate-50 transition-colors ${isMe}">
-            <td class="p-3 text-center font-bold text-slate-400">${u.rank}</td>
-            <td class="p-3 text-slate-800">${u.name}</td>
-            <td class="p-3 text-center text-slate-500 font-medium">${recordStr}</td>
-            <td class="p-3 text-right font-bold text-slate-700">${u[key]}</td>
+  let html = `
+    <div class="bg-white/90 backdrop-blur-sm rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <table class="w-full text-left text-xs sm:text-sm">
+        <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold sticky top-0">
+          <tr>
+            <th class="p-2 sm:p-3 w-10 text-center">Rnk</th>
+            <th class="p-2 sm:p-3">Name</th>
+            <th class="p-2 sm:p-3 text-center">Record</th>
+            <th class="p-2 sm:p-3 text-right">Pts</th>
           </tr>
-        `;
-      });
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+  `;
 
-      html += `</tbody></table></div>`;
-      container.innerHTML = html;
-    }
+  rankedData.forEach(u => {
+    const isMe = u.name === state.name ? 'bg-yellow-50 font-semibold' : '';
+    
+    let recordStr = '';
+    if (key === 'featPts') recordStr = `${u.featCorrect}/${u.featCompleted}`;
+    if (key === 'dynamicPropPts') recordStr = `${u.propCorrect}/${u.propCompleted}`;
+
+    html += `
+      <tr class="hover:bg-slate-50 transition-colors ${isMe}">
+        <td class="p-2 sm:p-3 text-center font-bold text-slate-400">${u.rank}</td>
+        <td class="p-2 sm:p-3 text-slate-800 truncate max-w-[120px] sm:max-w-auto">${u.name}</td>
+        <td class="p-2 sm:p-3 text-center text-slate-500 font-medium">${recordStr}</td>
+        <td class="p-2 sm:p-3 text-right font-bold text-slate-700">${u[key]}</td>
+      </tr>
+    `;
+  });
+
+  html += `</tbody></table></div>`;
+  container.innerHTML = html;
+}
 
     function renderSeasonLeaderboard(type) {
       const btnTotal = document.getElementById('season-tab-total');
@@ -961,78 +965,82 @@
     }
 
     function renderWeeklyLbBreakdown() {
-      const container = document.getElementById('weekly-leaderboard-container');
-      if (weeklyLbData.ranks.length === 0 || weeklyLbData.games.length === 0) {
-        container.innerHTML = '<div class="p-6 text-center text-slate-400">No games or picks available for this week.</div>';
-        return;
-      }
+  const container = document.getElementById('weekly-leaderboard-container');
+  if (weeklyLbData.ranks.length === 0 || weeklyLbData.games.length === 0) {
+    container.innerHTML = '<div class="p-6 text-center text-slate-400">No games or picks available for this week.</div>';
+    return;
+  }
 
-      const rankedData = calculateRanks(weeklyLbData.ranks, 'totalPts');
+  const rankedData = calculateRanks(weeklyLbData.ranks, 'totalPts');
 
-      let html = `
-        <div class="overflow-x-auto h-[65vh] border border-slate-200 rounded-xl relative shadow-sm bg-white/90 backdrop-blur-sm custom-scrollbar">
-          <table class="w-full text-[10px] text-center border-collapse">
-            <thead class="table-sticky-header text-slate-500 font-bold">
-              <tr>
-                <th class="p-2 border-b border-slate-200 table-sticky-col-1 table-sticky-intersect-1 shadow-[1px_0_0_#e2e8f0]">Name</th>
-                <th class="p-2 border-b border-slate-200 table-sticky-col-2 table-sticky-intersect-2 text-slate-800 shadow-[1px_0_0_#e2e8f0]">
-                  <div class="grid grid-cols-2 items-center justify-items-center w-full">
-                    <span>Total</span>
-                    <span class="text-slate-400 text-[9px] font-normal">Poss</span>
-                  </div>
-                </th>
-      `;
-
-      weeklyLbData.games.forEach(game => {
-        html += `<th class="p-2 border-b border-slate-200 min-w-[70px] whitespace-nowrap">${game.id}</th>`;
-      });
-
-      html += `</tr></thead><tbody class="divide-y divide-slate-100">`;
-
-      rankedData.forEach(u => {
-        const isMe = u.name === state.name ? 'bg-yellow-50' : 'bg-white/90 backdrop-blur-sm';
-        const isMeText = u.name === state.name ? 'font-bold text-yellow-900' : 'font-semibold text-slate-800';
-        
-        html += `
-          <tr class="hover:bg-slate-50 transition-colors ${isMe}">
-            <td class="p-2 border-r border-slate-100 table-sticky-col-1 text-left ${isMe} ${isMeText} truncate"><span class="text-slate-400 font-bold mr-1">${u.rank}.</span> ${u.name}</td>
-            <td class="p-2 table-sticky-col-2 text-slate-800 ${isMe}">
+  let html = `
+    <div class="overflow-x-auto h-[65vh] border border-slate-200 rounded-xl relative shadow-sm bg-white/90 backdrop-blur-sm custom-scrollbar">
+      <table class="w-full text-[10px] text-center border-collapse">
+        <thead class="table-sticky-header text-slate-500 font-bold">
+          <tr>
+            <th class="p-2 border-b border-slate-200 table-sticky-col-1 table-sticky-intersect-1 shadow-[1px_0_0_#e2e8f0]">Name</th>
+            <th class="p-2 border-b border-slate-200 table-sticky-col-2 table-sticky-intersect-2 text-slate-800 shadow-[1px_0_0_#e2e8f0]">
               <div class="grid grid-cols-2 items-center justify-items-center w-full">
-                <span class="font-black">${u.totalPts}</span>
-                <span class="text-slate-400 text-[10px] font-semibold">${u.possiblePts}</span>
+                <span>Total</span>
+                <span class="text-slate-400 text-[9px] font-normal">Poss</span>
+              </div>
+            </th>
+  `;
+
+  // --- LOOP 1: THIS BUILDS THE HEADERS (UPDATED) ---
+  weeklyLbData.games.forEach(game => {
+    const matchText = `${game.away} @ ${game.home}`;
+    const headerColor = game.featured ? 'text-orange-500' : 'text-slate-800';
+    html += `<th class="p-2 border-b border-slate-200 min-w-[70px] whitespace-nowrap"><span class="${headerColor} text-[10px] font-black">${matchText}</span></th>`;
+  });
+
+  html += `</tr></thead><tbody class="divide-y divide-slate-100">`;
+
+  rankedData.forEach(u => {
+    const isMe = u.name === state.name ? 'bg-yellow-50' : 'bg-white/90 backdrop-blur-sm';
+    const isMeText = u.name === state.name ? 'font-bold text-yellow-900' : 'font-semibold text-slate-800';
+    
+    html += `
+      <tr class="hover:bg-slate-50 transition-colors ${isMe}">
+        <td class="p-2 border-r border-slate-100 table-sticky-col-1 text-left ${isMe} ${isMeText} truncate"><span class="text-slate-400 font-bold mr-1">${u.rank}.</span> ${u.name}</td>
+        <td class="p-2 table-sticky-col-2 text-slate-800 ${isMe}">
+          <div class="grid grid-cols-2 items-center justify-items-center w-full">
+            <span class="font-black">${u.totalPts}</span>
+            <span class="text-slate-400 text-[10px] font-semibold">${u.possiblePts}</span>
+          </div>
+        </td>
+    `;
+
+    // --- LOOP 2: THIS BUILDS THE USER CELLS (YOUR SCREENSHOT) ---
+    weeklyLbData.games.forEach(game => {
+      if (!game.locked) {
+        html += `<td class="p-2 border-l border-slate-50 min-w-[70px]"><span class="text-[10px] text-slate-300 flex items-center justify-center gap-1">🔒<span class="hidden sm:inline">Hidden</span></span></td>`;
+      } else {
+        const pick = weeklyLbData.picks.find(p => p.email === u.email && p.game === game.id);
+        if (pick && pick.choice) {
+          const logo = pick.choice === game.home ? game.homeLogo : (pick.choice === game.away ? game.awayLogo : '');
+          const logoImg = logo ? `<img src="${logo}" class="w-3 h-3 object-contain">` : '';
+          html += `
+            <td class="p-2 border-l border-slate-50 min-w-[70px]">
+              <div class="flex items-center justify-center gap-1 whitespace-nowrap">
+                <span class="font-black text-blue-600 text-[11px]">${pick.confidence}</span>
+                <span class="font-bold text-slate-700 text-[10px]">${pick.choice}</span>
+                ${logoImg}
               </div>
             </td>
-        `;
+          `;
+        } else {
+          html += `<td class="p-2 border-l border-slate-50 min-w-[70px] text-slate-300">-</td>`;
+        }
+      }
+    });
+    
+    html += `</tr>`;
+  });
 
-        weeklyLbData.games.forEach(game => {
-          if (!game.locked) {
-            html += `<td class="p-2 border-l border-slate-50 min-w-[70px]"><span class="text-[10px] text-slate-300 flex items-center justify-center gap-1">🔒<span class="hidden sm:inline">Hidden</span></span></td>`;
-          } else {
-            const pick = weeklyLbData.picks.find(p => p.email === u.email && p.game === game.id);
-            if (pick && pick.choice) {
-              const logo = pick.choice === game.home ? game.homeLogo : (pick.choice === game.away ? game.awayLogo : '');
-              const logoImg = logo ? `<img src="${logo}" class="w-3 h-3 object-contain">` : '';
-              html += `
-                <td class="p-2 border-l border-slate-50 min-w-[70px]">
-                  <div class="flex items-center justify-center gap-1 whitespace-nowrap">
-                    <span class="font-black text-blue-600 text-[11px]">${pick.confidence}</span>
-                    <span class="font-bold text-slate-700 text-[10px]">${pick.choice}</span>
-                    ${logoImg}
-                  </div>
-                </td>
-              `;
-            } else {
-              html += `<td class="p-2 border-l border-slate-50 min-w-[70px] text-slate-300">-</td>`;
-            }
-          }
-        });
-        
-        html += `</tr>`;
-      });
-
-      html += `</tbody></table></div>`;
-      container.innerHTML = html;
-    }
+  html += `</tbody></table></div>`;
+  container.innerHTML = html;
+}
 
     // --- ACCOUNT LOGIC --- //
 
