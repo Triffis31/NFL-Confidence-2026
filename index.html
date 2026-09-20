@@ -1807,6 +1807,12 @@ function renderPicksList() {
     }
 
     async function handleSavePicks() {
+      // --- NEW SAFETY GUARD ---
+      if (currentWeekGames.length === 0) {
+        alert("Please wait for the games to load before saving.");
+        return false;
+      }
+      
       const saveBtn = document.getElementById('save-picks-btn');
       saveBtn.innerText = 'SAVING...';
       saveBtn.disabled = true;
@@ -1995,6 +2001,12 @@ function renderPicksList() {
     }
 
     async function handleSaveProps() {
+      // --- NEW SAFETY GUARD ---
+      if (currentProps.length === 0) {
+        alert("Please wait for the props to load before saving.");
+        return false;
+      }
+
       const saveBtn = document.getElementById('save-props-btn');
       saveBtn.innerText = 'SAVING...';
       saveBtn.disabled = true;
