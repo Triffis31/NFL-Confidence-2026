@@ -1799,8 +1799,9 @@ function renderPicksList() {
       // 2. Trigger the unsaved changes warning
       markUnsaved('picks');
 
-      // 3. Bulletproof DOM Traversal
-      const container = btn.closest('.flex-1') || btn.parentElement;
+      // 3. Fix the DOM Traversal
+      // Since 'btn' is definitively the <button>, its parent is exactly the wrapper we need
+      const container = btn.parentElement;
       const awayBtn = container.querySelector('.away-btn');
       const homeBtn = container.querySelector('.home-btn');
 
