@@ -1604,7 +1604,7 @@ function renderPicksList() {
           else if (game.status === 'STATUS_IN_PROGRESS' || game.status === 'Live') awayStyle = 'border-amber-400 bg-amber-50 text-amber-900';
           else if ((game.status === 'STATUS_FINAL' || game.status === 'Final') && game.winner === game.away) awayStyle = 'border-emerald-500 bg-emerald-50 text-emerald-900';
           else if (game.status === 'STATUS_FINAL' || game.status === 'Final') awayStyle = 'border-red-500 bg-red-50 text-red-900';
-          else awayStyle = 'border-slate-300 bg-slate-50 text-slate-800'; // Locked but not live yet
+          else awayStyle = 'border-slate-300 bg-slate-50 text-slate-800'; 
         }
         
         if (pickedTeam === game.home) {
@@ -1612,13 +1612,12 @@ function renderPicksList() {
           else if (game.status === 'STATUS_IN_PROGRESS' || game.status === 'Live') homeStyle = 'border-amber-400 bg-amber-50 text-amber-900';
           else if ((game.status === 'STATUS_FINAL' || game.status === 'Final') && game.winner === game.home) homeStyle = 'border-emerald-500 bg-emerald-50 text-emerald-900';
           else if (game.status === 'STATUS_FINAL' || game.status === 'Final') homeStyle = 'border-red-500 bg-red-50 text-red-900';
-          else homeStyle = 'border-slate-300 bg-slate-50 text-slate-800'; // Locked but not live yet
+          else homeStyle = 'border-slate-300 bg-slate-50 text-slate-800'; 
         }
 
         let tickerDisplay = `<span class="text-slate-400 font-medium tracking-widest uppercase text-center w-full">Scheduled</span>`;
         if (game.status === 'STATUS_IN_PROGRESS' || game.status === 'STATUS_FINAL' || game.status === 'Live' || game.status === 'Final') {
           
-          // Format the clock text using our new helper function
           const displayClock = formatGameDisplay(game.status, game.clock);
           
           tickerDisplay = `
@@ -1642,10 +1641,10 @@ function renderPicksList() {
           dragHandleClasses += ` bg-slate-50 border-slate-100 ${isLocked ? '' : 'hover:bg-slate-100'}`;
         }
 
+        // --- NEW: Added data-locked and data-locked-conf to HTML ---
         html += `
-          <div class="${rowClass} flex flex-col mb-4 drop-shadow-sm" data-game-id="${game.id}">
+          <div class="${rowClass} flex flex-col mb-4 drop-shadow-sm" data-game-id="${game.id}" data-locked="${isLocked}" data-locked-conf="${isLocked ? confidenceVal : ''}">
             
-            <!-- Increased height to h-20 to fit Spread & O/U comfortably -->
             <div class="flex items-stretch h-20 w-full">
               <div class="confidence-legend w-10 flex flex-col items-center justify-center font-black text-slate-400 bg-slate-100 rounded-tl-xl border border-slate-200 border-r-0 text-lg">
                 <span class="leading-none conf-num">${confidenceVal}</span>
@@ -1688,56 +1687,48 @@ function renderPicksList() {
         animation: 200,
         ghostClass: 'sortable-ghost',
         dragClass: 'sortable-drag',
-        filter: '.locked-game, .team-btn', // Added .team-btn to the ignore list
-        preventOnFilter: false,            // Forces Sortable to allow the tap to go through
+        filter: '.locked-game, .team-btn', 
+        preventOnFilter: false,            
         forceFallback: true,    
         fallbackTolerance: 3,   
-        onMove: function (evt) {
-          return !evt.related.classList.contains('locked-game');
-        },
         onEnd: function () {
+          // --- NEW ANCHOR LOGIC ---
+          const picksContainer = document.getElementById('picks-list');
+          const rowElements = Array.from(picksContainer.children);
+          const totalRows = rowElements.length;
+
+          // Find locked games and their strict target positions
+          const lockedGames = [];
+          rowElements.forEach(row => {
+            if (row.dataset.locked === 'true') {
+              lockedGames.push({
+                el: row,
+                targetIndex: totalRows - parseInt(row.dataset.lockedConf)
+              });
+            }
+          });
+
+          // Detach locked games temporarily so unlocked games collapse
+          lockedGames.forEach(lg => picksContainer.removeChild(lg.el));
+
+          // Sort by target index to insert them back strictly top-to-bottom
+          lockedGames.sort((a, b) => a.targetIndex - b.targetIndex);
+
+          // Re-insert at their exact original positions
+          lockedGames.forEach(lg => {
+            const currentChildren = picksContainer.children;
+            if (lg.targetIndex >= currentChildren.length) {
+              picksContainer.appendChild(lg.el);
+            } else {
+              picksContainer.insertBefore(lg.el, currentChildren[lg.targetIndex]);
+            }
+          });
+
           updateConfidenceNumbers();
           markUnsaved('picks');
         }
       });
     }
-
-    function selectTeam(btn, gameId, teamName, isLocked) {
-  if (isLocked) return;
-
-  // 1. Update the state (toggle selection)
-  if (userPicks[gameId] === teamName) {
-    delete userPicks[gameId]; 
-  } else {
-    userPicks[gameId] = teamName; 
-  }
-
-  // 2. Trigger the unsaved changes warning
-  markUnsaved('picks');
-
-  // 3. Update the UI classes manually
-  const container = btn.parentElement;
-  const awayBtn = container.querySelector('.away-btn');
-  const homeBtn = container.querySelector('.home-btn');
-
-  // The exact active and default classes from the new redesign
-  const activeClasses = ['border-blue-500', 'bg-blue-50', 'text-blue-900'];
-  const defaultClasses = ['border-transparent', 'bg-white'];
-
-  // Reset both buttons to their default unselected state
-  [awayBtn, homeBtn].forEach(button => {
-    if (button) {
-      button.classList.remove(...activeClasses);
-      button.classList.add(...defaultClasses);
-    }
-  });
-
-  // Apply the active highlight if a team is currently selected
-  if (userPicks[gameId]) {
-    btn.classList.remove(...defaultClasses);
-    btn.classList.add(...activeClasses);
-  }
-}
 
     function updateConfidenceNumbers() {
       const rows = document.querySelectorAll('#picks-list .pick-row');
