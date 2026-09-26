@@ -1026,6 +1026,23 @@
     `;
   });
 
+  html += `</tr></thead><tbody class="divide-y divide-slate-100">`;
+
+  rankedData.forEach(u => {
+    const isMe = u.name === state.name ? 'bg-yellow-50' : 'bg-white/90 backdrop-blur-sm';
+    const isMeText = u.name === state.name ? 'font-bold text-yellow-900' : 'font-semibold text-slate-800';
+    
+    html += `
+      <tr class="hover:bg-slate-50 transition-colors ${isMe}">
+        <td class="p-2 border-r border-slate-100 table-sticky-col-1 text-left ${isMe} ${isMeText} truncate"><span class="text-slate-400 font-bold mr-1">${u.rank}.</span> ${u.name}</td>
+        <td class="p-2 table-sticky-col-2 text-slate-800 ${isMe}">
+          <div class="grid grid-cols-2 items-center justify-items-center w-full">
+            <span class="font-black">${u.totalPts}</span>
+            <span class="text-slate-400 text-[10px] font-semibold">${u.possiblePts}</span>
+          </div>
+        </td>
+    `;
+
     // --- LOOP 2: THIS BUILDS THE USER CELLS ---
     weeklyLbData.games.forEach(game => {
       if (!game.locked) {
@@ -1036,7 +1053,7 @@
           const logo = pick.choice === game.home ? game.homeLogo : (pick.choice === game.away ? game.awayLogo : '');
           const logoImg = logo ? `<img src="${logo}" class="w-3 h-3 object-contain">` : '';
           
-          // --- NEW: CONDITIONAL COLOR LOGIC ---
+          // --- CONDITIONAL COLOR LOGIC ---
           let confColorClass = 'text-blue-600'; // Default Blue
           let isFinal = String(game.status).toUpperCase().includes('FINAL');
           
@@ -1047,7 +1064,7 @@
               confColorClass = 'text-red-500';     // Incorrect (Red)
             }
           }
-          // ------------------------------------
+          // --------------------------------
 
           html += `
             <td class="p-2 border-l border-slate-50 min-w-[70px]">
