@@ -1672,8 +1672,16 @@ function renderPicksList() {
         }
 
         let tickerDisplay = `<span class="text-slate-400 font-medium tracking-widest uppercase text-center w-full">Scheduled</span>`;
-        if (game.status === 'STATUS_IN_PROGRESS' || game.status === 'STATUS_FINAL' || game.status === 'Live' || game.status === 'Final') {
-          
+        if (
+          game.status === 'STATUS_IN_PROGRESS' || 
+          game.status === 'STATUS_HALFTIME' || 
+          game.status === 'STATUS_END_PERIOD' || 
+          game.status === 'STATUS_FINAL' || 
+          game.status === 'Live' || 
+          game.status === 'Halftime' || 
+          game.status === 'Final'
+        ) {
+          // Format the clock text using our helper function
           const displayClock = formatGameDisplay(game.status, game.clock);
           
           tickerDisplay = `
@@ -2273,11 +2281,11 @@ function renderPicksList() {
         <span class="text-slate-400">→</span>
       </button>
 
-      <!-- My Account Button -->  
+      <!-- My Account Button -->
       <button onclick="attemptNavigation('account-view')" class="w-full bg-white/90 backdrop-blur-sm p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-95 transition-transform">
         <div class="flex items-center"><span class="text-2xl mr-3">👤</span><span class="font-semibold text-lg text-slate-700">My Account</span></div>
         <div class="flex items-center">
-          <span id="unpaid-badge" class="hidden w-3 h-3 bg-red-500 rounded-full shadow-sm mr-3 animate-pulse"></span>
+          <span id="unpaid-badge" class="hidden bg-red-600 text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shadow-sm mr-3 uppercase tracking-wider animate-pulse">Unpaid</span>
           <span id="missing-name-badge" class="hidden w-3 h-3 bg-amber-500 rounded-full shadow-sm mr-3 animate-pulse"></span>
           <span class="text-slate-400">→</span>
         </div>
