@@ -891,6 +891,10 @@
         weeklyLbData.ranks = res.ranks || [];
         weeklyLbData.games = res.games || [];
         weeklyLbData.picks = res.picks || [];
+        
+        // Load the new prop arrays
+        weeklyLbData.props = res.props || [];
+        weeklyLbData.propPicks = res.propPicks || [];
 
         renderWeeklyLeaderboard(tab);
       } else {
@@ -900,18 +904,120 @@
 
     function renderWeeklyLeaderboard(tab) {
       const btnTotal = document.getElementById('weekly-tab-total');
-      const btnBreakdown = document.getElementById('weekly-tab-breakdown');
-      
+      const btnGames = document.getElementById('weekly-tab-breakdown');
+      const btnProps = document.getElementById('weekly-tab-props');
+
+      const unselectedClass = "flex-1 py-2 font-bold text-sm text-slate-500 hover:text-slate-700 transition-all";
+      const selectedClass = "flex-1 py-2 font-bold text-sm bg-white/90 backdrop-blur-sm text-slate-800 rounded-lg shadow-sm border border-slate-200 transition-all";
+
+      if (btnTotal) btnTotal.className = unselectedClass;
+      if (btnGames) btnGames.className = unselectedClass;
+      if (btnProps) btnProps.className = unselectedClass;
+
       if (tab === 'Total') {
-        btnTotal.className = "flex-1 py-2 font-bold text-sm bg-white/90 backdrop-blur-sm text-slate-800 rounded-lg shadow-sm border border-slate-200 transition-all";
-        btnBreakdown.className = "flex-1 py-2 font-bold text-sm text-slate-500 hover:text-slate-700 transition-all";
+        if (btnTotal) btnTotal.className = selectedClass;
         renderWeeklyLbTotal();
-      } else {
-        btnBreakdown.className = "flex-1 py-2 font-bold text-sm bg-white/90 backdrop-blur-sm text-slate-800 rounded-lg shadow-sm border border-slate-200 transition-all";
-        btnTotal.className = "flex-1 py-2 font-bold text-sm text-slate-500 hover:text-slate-700 transition-all";
+      } else if (tab === 'Games') {
+        if (btnGames) btnGames.className = selectedClass;
         renderWeeklyLbBreakdown();
+      } else if (tab === 'Props') {
+        if (btnProps) btnProps.className = selectedClass;
+        renderWeeklyLbProps();
       }
     }
+
+    // --- NEW: Renders the Prop Picks Leaderboard ---
+    function renderWeeklyLbProps() {
+      const container = document.getElementById('weekly-leaderboard-container');
+      if (weeklyLbData.ranks.length === 0 || weeklyLbData.props.length === 0) {
+        container.innerHTML = '<div class="p-6 text-center text-slate-400">No props or picks available for this week.</div>';
+        return;
+      }
+
+      const rankedData = calculateRanks(weeklyLbData.ranks, 'totalPts');
+
+      let html = `
+        <div class="overflow-x-auto h-[65vh] border border-slate-200 rounded-xl relative shadow-sm bg-white custom-scrollbar">
+          <table class="w-full text-[10px] text-center border-collapse">
+            <thead class="table-sticky-header text-slate-500 font-bold">
+              <tr>
+                <th class="p-2 border-b border-slate-200 table-sticky-col-1 table-sticky-intersect-1 shadow-[1px_0_0_#e2e8f0]">Name</th>
+                <th class="p-2 border-b border-slate-200 table-sticky-col-2 table-sticky-intersect-2 text-slate-800 shadow-[1px_0_0_#e2e8f0]">
+                  <div class="grid grid-cols-2 items-center justify-items-center w-full">
+                    <span>Total</span>
+                    <span class="text-slate-400 text-[9px] font-normal">Poss</span>
+                  </div>
+                </th>
+      `;
+
+      // Build Headers for each Prop
+      weeklyLbData.props.forEach(prop => {
+        const outcomeColor = prop.outcome === 'TBD' ? 'text-slate-400' : 'text-slate-800';
+        html += `
+          <th class="p-2 border-b border-slate-200 min-w-[95px] align-middle">
+            <div class="flex flex-col text-[10px] w-full text-slate-800 gap-1.5 justify-center items-center text-center">
+              <span class="font-black uppercase tracking-tight leading-tight">${prop.name}</span>
+              <span class="font-bold ${outcomeColor} text-[8.5px] uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded">${prop.outcome}</span>
+            </div>
+          </th>
+        `;
+      });
+
+      html += `</tr></thead><tbody class="divide-y divide-slate-100">`;
+
+      rankedData.forEach(u => {
+        const isMe = u.name === state.name ? 'bg-blue-50/50' : 'bg-white';
+        const isMeText = u.name === state.name ? 'font-bold text-blue-900' : 'font-semibold text-slate-800';
+        
+        html += `
+          <tr class="hover:bg-slate-50 transition-colors ${isMe}">
+            <td class="p-2 border-r border-slate-100 table-sticky-col-1 text-left ${isMe} ${isMeText} truncate"><span class="text-slate-400 font-bold mr-1">${u.rank}.</span> ${u.name}</td>
+            <td class="p-2 table-sticky-col-2 text-slate-800 ${isMe}">
+              <div class="grid grid-cols-2 items-center justify-items-center w-full">
+                <span class="font-black">${u.totalPts}</span>
+                <span class="text-slate-400 text-[10px] font-semibold">${u.possiblePts}</span>
+              </div>
+            </td>
+        `;
+
+        // Render each user's pick for each prop
+        weeklyLbData.props.forEach(prop => {
+          if (!prop.locked) {
+            html += `<td class="p-2 border-l border-slate-50 min-w-[95px]"><span class="text-[10px] text-slate-300 flex items-center justify-center gap-1">🔒<span class="hidden sm:inline">Hidden</span></span></td>`;
+          } else {
+            const pick = weeklyLbData.propPicks.find(p => p.email === u.email && p.prop === prop.name);
+            
+            if (pick && pick.choice) {
+              let confColorClass = 'text-slate-700'; 
+              
+              if (prop.outcome !== 'TBD') {
+                if (pick.choice.toLowerCase() === prop.outcome.toLowerCase()) {
+                  confColorClass = 'text-emerald-500'; // Correct
+                } else {
+                  confColorClass = 'text-red-500';     // Incorrect
+                }
+              }
+
+              html += `
+                <td class="p-2 border-l border-slate-50 min-w-[95px] text-center">
+                  <div class="flex items-center justify-center whitespace-nowrap overflow-hidden text-ellipsis px-1">
+                    <span class="font-bold ${confColorClass} text-[10.5px] max-w-[85px] block truncate" title="${pick.choice}">${pick.choice}</span>
+                  </div>
+                </td>
+              `;
+            } else {
+              html += `<td class="p-2 border-l border-slate-50 min-w-[95px] text-center text-slate-300">-</td>`;
+            }
+          }
+        });
+        
+        html += `</tr>`;
+      });
+
+      html += `</tbody></table></div>`;
+      container.innerHTML = html;
+    }
+
 
     function renderWeeklyLbTotal() {
       const container = document.getElementById('weekly-leaderboard-container');
@@ -2420,9 +2526,10 @@ function renderPicksList() {
           <div class="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">▼</div>
         </div>
       </div>
-      <div class="flex gap-2 mb-4 bg-slate-100 p-1 rounded-xl">
-        <button id="weekly-tab-total" onclick="renderWeeklyLeaderboard('Total')" class="flex-1 py-2 font-bold text-sm bg-white/90 backdrop-blur-sm text-slate-800 rounded-lg shadow-sm border border-slate-200 transition-all">Total</button>
-        <button id="weekly-tab-breakdown" onclick="renderWeeklyLeaderboard('Breakdown')" class="flex-1 py-2 font-bold text-sm text-slate-500 hover:text-slate-700 transition-all">Game Breakdown</button>
+      <div class="flex items-center gap-2 p-1 bg-slate-100 rounded-xl mb-4">
+        <button id="weekly-tab-total" onclick="loadWeeklyLeaderboard('Total')" class="flex-1 py-2 font-bold text-sm bg-white/90 backdrop-blur-sm text-slate-800 rounded-lg shadow-sm border border-slate-200 transition-all">Total</button>
+        <button id="weekly-tab-breakdown" onclick="loadWeeklyLeaderboard('Games')" class="flex-1 py-2 font-bold text-sm text-slate-500 hover:text-slate-700 transition-all">Games</button>
+        <button id="weekly-tab-props" onclick="loadWeeklyLeaderboard('Props')" class="flex-1 py-2 font-bold text-sm text-slate-500 hover:text-slate-700 transition-all">Props</button>
       </div>
       <div id="weekly-leaderboard-container"></div>
     </div>
