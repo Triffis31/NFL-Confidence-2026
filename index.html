@@ -1104,7 +1104,13 @@
     const isFinal = String(game.status).toUpperCase().includes('FINAL');
 
     // Only show scores and clock if the game has started or finished
-    if (game.status === 'STATUS_IN_PROGRESS' || game.status === 'STATUS_FINAL' || game.status === 'Live' || game.status === 'Final') {
+    if (game.status === 'STATUS_IN_PROGRESS' ||
+      game.status === 'STATUS_HALFTIME' || 
+      game.status === 'STATUS_FINAL' ||
+      game.status === 'Live' ||
+      game.status === 'Halftime' || 
+      game.status === 'Final'
+    ){
       displayClock = formatGameDisplay(game.status, game.clock);
       aScore = game.awayScore;
       hScore = game.homeScore;
@@ -2104,7 +2110,7 @@ function renderPicksList() {
     function renderPropsList() {
       const container = document.getElementById('props-list');
       if (currentProps.length === 0) {
-        container.innerHTML = `<div class="p-8 text-center text-slate-400 bg-white/90 backdrop-blur-sm rounded-xl border border-dashed border-slate-300">No prop plays found for Week ${state.viewedWeek}</div>`;
+        container.innerHTML = `<div class="p-8 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">No prop plays found for Week ${state.viewedWeek}</div>`;
         return;
       }
 
@@ -2131,8 +2137,8 @@ function renderPicksList() {
           const isNo = currentChoice === 'No';
           inputHtml = `
             <div class="flex gap-3">
-              <button onclick="${isLocked ? '' : `selectProp('${prop.title}', 'Yes')`}" class="flex-1 py-3 font-bold rounded-xl border-2 transition-colors ${isYes ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white/90 backdrop-blur-sm border-slate-200 text-slate-500'} ${!isLocked && !isYes ? 'hover:bg-slate-50' : ''} ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}">Yes</button>
-              <button onclick="${isLocked ? '' : `selectProp('${prop.title}', 'No')`}" class="flex-1 py-3 font-bold rounded-xl border-2 transition-colors ${isNo ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white/90 backdrop-blur-sm border-slate-200 text-slate-500'} ${!isLocked && !isNo ? 'hover:bg-slate-50' : ''} ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}">No</button>
+              <button onclick="${isLocked ? '' : `selectProp('${prop.title}', 'Yes')`}" class="flex-1 py-3 font-bold rounded-xl border-2 transition-colors ${isYes ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-200 text-slate-500'} ${!isLocked && !isYes ? 'hover:bg-slate-50' : ''} ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}">Yes</button>
+              <button onclick="${isLocked ? '' : `selectProp('${prop.title}', 'No')`}" class="flex-1 py-3 font-bold rounded-xl border-2 transition-colors ${isNo ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-200 text-slate-500'} ${!isLocked && !isNo ? 'hover:bg-slate-50' : ''} ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}">No</button>
             </div>
           `;
         } else if (prop.type === 'Dropdown (Team)') {
@@ -2142,7 +2148,7 @@ function renderPicksList() {
           });
           inputHtml = `
             <div class="relative">
-              <select onchange="selectProp('${prop.title}', this.value)" ${isLocked ? 'disabled' : ''} class="w-full border-2 border-slate-200 text-slate-800 font-semibold rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 appearance-none outline-none ${isLocked ? 'opacity-60 cursor-not-allowed bg-slate-50' : 'bg-white/90 backdrop-blur-sm'}">
+              <select onchange="selectProp('${prop.title}', this.value)" ${isLocked ? 'disabled' : ''} class="w-full border-2 border-slate-200 text-slate-800 font-semibold rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 appearance-none outline-none ${isLocked ? 'opacity-60 cursor-not-allowed bg-slate-50' : 'bg-white'}">
                 ${options}
               </select>
               <div class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs">▼</div>
@@ -2155,7 +2161,26 @@ function renderPicksList() {
           });
           inputHtml = `
             <div class="relative">
-              <select onchange="selectProp('${prop.title}', this.value)" ${isLocked ? 'disabled' : ''} class="w-full border-2 border-slate-200 text-slate-800 font-semibold rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 appearance-none outline-none ${isLocked ? 'opacity-60 cursor-not-allowed bg-slate-50' : 'bg-white/90 backdrop-blur-sm'}">
+              <select onchange="selectProp('${prop.title}', this.value)" ${isLocked ? 'disabled' : ''} class="w-full border-2 border-slate-200 text-slate-800 font-semibold rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 appearance-none outline-none ${isLocked ? 'opacity-60 cursor-not-allowed bg-slate-50' : 'bg-white'}">
+                ${options}
+              </select>
+              <div class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs">▼</div>
+            </div>
+          `;
+        } else if (prop.type && prop.type.toLowerCase().startsWith('dropdown (')) {
+          const match = prop.type.match(/\(([^)]+)\)/);
+          const customOptions = match
+            ? match[1].split(',').map(opt => opt.trim()).filter(Boolean)
+            : [];
+
+          let options = `<option value="">Select an option...</option>`;
+          customOptions.forEach(opt => {
+            options += `<option value="${opt}" ${currentChoice === opt ? 'selected' : ''}>${opt}</option>`;
+          });
+
+          inputHtml = `
+            <div class="relative">
+              <select onchange="selectProp('${prop.title}', this.value)" ${isLocked ? 'disabled' : ''} class="w-full border-2 border-slate-200 text-slate-800 font-semibold rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 appearance-none outline-none ${isLocked ? 'opacity-60 cursor-not-allowed bg-slate-50' : 'bg-white'}">
                 ${options}
               </select>
               <div class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs">▼</div>
@@ -2164,14 +2189,14 @@ function renderPicksList() {
         }
 
         html += `
-          <div class="bg-white/90 backdrop-blur-sm p-5 rounded-2xl shadow-sm border border-slate-100 mb-4">
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-4">
             <div class="flex justify-between items-start mb-1 gap-2">
               <h3 class="font-bold text-slate-800 text-lg leading-tight flex items-center">
                 ${prop.title}
                 ${isLocked ? '<span class="ml-2 text-base">🔒</span>' : ''}
               </h3>
               
-              <!-- Added: Prop Lock Date and Time -->
+              <!-- Prop Lock Date and Time -->
               <div class="flex flex-col items-end shrink-0 pt-0.5">
                 <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">${prop.lockDate || ''}</span>
                 <span class="text-[10px] font-semibold text-slate-500">${prop.lockTime || ''}</span>
